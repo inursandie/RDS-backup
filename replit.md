@@ -41,9 +41,13 @@ RAJA Digital System v1.0 - A driver management and SIJ (Surat Izin Jalan) transa
 - Super Admin: superadmin@raja.id / superadmin123
 
 ## Recent Changes
+- **2026-02-25**: Added configurable API base URL for external frontend deployments (e.g. Vercel)
+  - `AuthContext.jsx`: API URL reads from `REACT_APP_API_URL` env var, falls back to `/api`
+  - For Vercel: Set `REACT_APP_API_URL=https://koperasiraja.replit.app` in Vercel env vars
+  - CORS already allows all origins (`allow_origins=["*"]`)
 - **2026-02-25**: Migrated database from Replit PostgreSQL to Supabase PostgreSQL
   - Updated `backend/server.py` to use `SUPABASE_DATABASE_URL` env var (falls back to `DATABASE_URL`)
-  - Added SSL context for Supabase connection compatibility
+  - Added SSL context and PgBouncer compatibility (statement_cache_size=0)
   - Tables auto-created and seeded on first startup via existing `create_tables()` and `seed_initial_data()`
 - **2026-02-24**: Added Laporan Mingguan (Weekly Report) module
   - Backend: GET `/api/weekly-report?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` - aggregates KHD (attendance) and RTS (trips) per driver per day
