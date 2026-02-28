@@ -22,7 +22,7 @@ export default function RevenueReport() {
   const [date, setDate] = useState(todayISO());
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
   const fetchReport = async () => {
@@ -32,7 +32,7 @@ export default function RevenueReport() {
         params: { period, date },
         headers: getAuthHeader(),
       });
-      setRows(res.data.rows);
+      setRows(res.data.rows || []);
       setMeta(res.data.meta);
     } catch {
       toast.error('Gagal memuat Revenue Report');
@@ -68,7 +68,7 @@ export default function RevenueReport() {
     }
   };
 
-  const totals = rows.reduce(
+  const totals = (rows || []).reduce(
     (acc, r) => ({
       qty_standar: acc.qty_standar + r.qty_standar,
       revenue_standar: acc.revenue_standar + r.revenue_standar,
