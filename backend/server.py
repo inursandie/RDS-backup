@@ -525,6 +525,167 @@ async def export_sij_pdf(date_from: Optional[str] = None, date_to: Optional[str]
     return StreamingResponse(buf, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={fname}"})
 
 
+@api_router.get("/revenue-report/export/csv")
+async def export_revenue_csv(period: str = "monthly",
+                             date: Optional[str] = None,
+                             user: dict = Depends(get_current_user)):
+    rows, meta = await _revenue_report_data(period, date)
+    output = io.StringIO()
+    fields = ["period_label", "qty_standar", "revenue_standar", "qty_premium", "revenue_premium", "total_revenue"]
+    writer = csv.DictWriter(output, fieldnames=fields)
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({
+            "period_label": r["period_label"],
+            "qty_standar": r["qty_standar"],
+            "revenue_standar": r["revenue_standar"],
+            "qty_premium": r["qty_premium"],
+            "revenue_premium": r["revenue_premium"],
+            "total_revenue": r["total_revenue"],
+        })
+    total_row = {
+        "period_label": "GRAND TOTAL",
+        "qty_standar": sum(r["qty_standar"] for r in rows),
+        "revenue_standar": sum(r["revenue_standar"] for r in rows),
+        "qty_premium": sum(r["qty_premium"] for r in rows),
+        "revenue_premium": sum(r["revenue_premium"] for r in rows),
+        "total_revenue": sum(r["total_revenue"] for r in rows),
+    }
+    writer.writerow(total_row)
+    output.seek(0)
+    fname = f"revenue_{period}_{meta['date_from']}_{meta['date_to']}.csv"
+    return StreamingResponse(io.BytesIO(output.getvalue().encode()), media_type="text/csv",
+                             headers={"Content-Disposition": f"attachment; filename={fname}"})
+
+
+@api_router.get("/revenue-report/export/pdf")
+async def export_revenue_pdf(period: str = "monthly",
+                             date: Optional[str] = None,
+                             user: dict = Depends(get_current_user)):
+    rows, meta = await _revenue_report_data(period, date)
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), topMargin=15*mm, bottomMargin=15*mm)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title2', parent=styles['Title'], fontSize=16, spaceAfter=6)
+    sub_style = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=10, spaceAfter=10)
+    elements = []
+    period_labels = {"daily": "Harian", "weekly": "Mingguan", "monthly": "Bulanan"}
+    elements.append(Paragraph(f"Revenue Report – {period_labels.get(period, period)}", title_style))
+    elements.append(Paragraph(f"Periode: {meta['date_from']} s/d {meta['date_to']}", sub_style))
+    header = ["Periode / Jam", "Qty Standar", "Revenue Standar", "Qty Premium", "Revenue Premium", "Total Revenue"]
+    data = [header]
+    for r in rows:
+        data.append([
+            r["period_label"],
+            str(r["qty_standar"]),
+            f"Rp {r['revenue_standar']:,}",
+            str(r["qty_premium"]),
+            f"Rp {r['revenue_premium']:,}",
+            f"Rp {r['total_revenue']:,}",
+        ])
+    total_qty_s = sum(r["qty_standar"] for r in rows)
+    total_rev_s = sum(r["revenue_standar"] for r in rows)
+    total_qty_p = sum(r["qty_premium"] for r in rows)
+    total_rev_p = sum(r["revenue_premium"] for r in rows)
+    total_rev = sum(r["total_revenue"] for r in rows)
+    data.append(["GRAND TOTAL", str(total_qty_s), f"Rp {total_rev_s:,}", str(total_qty_p), f"Rp {total_rev_p:,}", f"Rp {total_rev:,}"])
+    col_widths = [70*mm, 30*mm, 50*mm, 30*mm, 50*mm, 50*mm]
+    t = Table(data, colWidths=col_widths)
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1a1a2e')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('ALIGN', (1,0), (-1,-1), 'RIGHT'),
+        ('ALIGN', (0,0), (0,-1), 'LEFT'),
+        ('ROWBACKGROUNDS', (0,1), (-1,-2), [colors.white, colors.HexColor('#f9f9f9')]),
+        ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#f59e0b')),
+        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+    ]))
+    elements.append(t)
+    doc.build(elements)
+    buf.seek(0)
+    fname = f"revenue_{period}_{meta['date_from']}_{meta['date_to']}.pdf"
+    return StreamingResponse(buf, media_type="application/pdf",
+                             headers={"Content-Disposition": f"attachment; filename={fname}"})
+
+
+async def _revenue_report_data(period: str, date: Optional[str]):
+    now = datetime.now(JAKARTA_TZ)
+    target = datetime.strptime(date, "%Y-%m-%d") if date else now
+
+    if period == "daily":
+        date_from = date_to = target.strftime("%Y-%m-%d")
+        rows = await pool.fetch(
+            """SELECT LPAD(EXTRACT(HOUR FROM time::time)::int::text, 2, '0') || ':00' AS period_label,
+                      COUNT(*) FILTER (WHERE category='standar') AS qty_standar,
+                      COALESCE(SUM(amount) FILTER (WHERE category='standar'), 0) AS revenue_standar,
+                      COUNT(*) FILTER (WHERE category='premium') AS qty_premium,
+                      COALESCE(SUM(amount) FILTER (WHERE category='premium'), 0) AS revenue_premium
+               FROM sij_transactions
+               WHERE date = $1 AND status = 'active'
+               GROUP BY EXTRACT(HOUR FROM time::time)
+               ORDER BY EXTRACT(HOUR FROM time::time)""",
+            date_from)
+    elif period == "weekly":
+        monday = target - timedelta(days=target.weekday())
+        sunday = monday + timedelta(days=6)
+        date_from = monday.strftime("%Y-%m-%d")
+        date_to = sunday.strftime("%Y-%m-%d")
+        rows = await pool.fetch(
+            """SELECT date::text AS period_label,
+                      COUNT(*) FILTER (WHERE category='standar') AS qty_standar,
+                      COALESCE(SUM(amount) FILTER (WHERE category='standar'), 0) AS revenue_standar,
+                      COUNT(*) FILTER (WHERE category='premium') AS qty_premium,
+                      COALESCE(SUM(amount) FILTER (WHERE category='premium'), 0) AS revenue_premium
+               FROM sij_transactions
+               WHERE date >= $1 AND date <= $2 AND status = 'active'
+               GROUP BY date
+               ORDER BY date""",
+            date_from, date_to)
+    else:
+        date_from = target.strftime("%Y-%m-01")
+        last_day = (target.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        date_to = last_day.strftime("%Y-%m-%d")
+        rows = await pool.fetch(
+            """SELECT date::text AS period_label,
+                      COUNT(*) FILTER (WHERE category='standar') AS qty_standar,
+                      COALESCE(SUM(amount) FILTER (WHERE category='standar'), 0) AS revenue_standar,
+                      COUNT(*) FILTER (WHERE category='premium') AS qty_premium,
+                      COALESCE(SUM(amount) FILTER (WHERE category='premium'), 0) AS revenue_premium
+               FROM sij_transactions
+               WHERE date >= $1 AND date <= $2 AND status = 'active'
+               GROUP BY date
+               ORDER BY date""",
+            date_from, date_to)
+
+    result = []
+    for r in rows:
+        rv_s = int(r["revenue_standar"])
+        rv_p = int(r["revenue_premium"])
+        result.append({
+            "period_label": r["period_label"],
+            "qty_standar": int(r["qty_standar"]),
+            "revenue_standar": rv_s,
+            "qty_premium": int(r["qty_premium"]),
+            "revenue_premium": rv_p,
+            "total_revenue": rv_s + rv_p,
+        })
+    meta = {"period": period, "date_from": date_from, "date_to": date_to}
+    return result, meta
+
+
+@api_router.get("/revenue-report")
+async def get_revenue_report(period: str = "monthly",
+                             date: Optional[str] = None,
+                             user: dict = Depends(get_current_user)):
+    rows, meta = await _revenue_report_data(period, date)
+    return {"rows": rows, "meta": meta}
+
+
 @api_router.patch("/sij/{transaction_id}/void")
 async def void_sij(transaction_id: str, user: dict = Depends(require_admin)):
     tx = await pool.fetchrow("SELECT * FROM sij_transactions WHERE transaction_id = $1", transaction_id)

@@ -15,6 +15,7 @@ import {
   Truck,
   UserCog,
   CalendarRange,
+  TrendingUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -54,6 +55,12 @@ const navItems = [
     label: "Laporan Mingguan",
     path: "/laporan-mingguan",
     roles: ["admin", "superadmin"],
+  },
+  {
+    icon: TrendingUp,
+    label: "Revenue Report",
+    path: "/revenue-report",
+    roles: ["superadmin"],
   },
   {
     icon: ClipboardList,

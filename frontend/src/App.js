@@ -12,6 +12,7 @@ import AuditLog from '@/pages/AuditLog';
 import RitaseList from '@/pages/RitaseList';
 import UserManagement from '@/pages/UserManagement';
 import LaporanMingguan from '@/pages/LaporanMingguan';
+import RevenueReport from '@/pages/RevenueReport';
 import Layout from '@/components/Layout';
 
 const PrivateRoute = () => {
@@ -49,6 +50,7 @@ function App() {
               <Route path="/audit" element={<AuditLog />} />
               <Route path="/user-management" element={<UserManagement />} />
               <Route path="/laporan-mingguan" element={<LaporanMingguan />} />
+              <Route path="/revenue-report" element={<RevenueReport />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
