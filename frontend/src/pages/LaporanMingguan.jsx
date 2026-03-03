@@ -51,7 +51,7 @@ function formatDateShort(str) {
   return `${d.getDate()}/${d.getMonth() + 1}`;
 }
 
-function DriverTable({ drivers, days, title, search, onAbsenceClick }) {
+function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseClick }) {
   const filtered = useMemo(() => {
     if (!search.trim()) return drivers;
     const q = search.toLowerCase();
@@ -228,22 +228,21 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick }) {
                             <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />
                           </div>
                         ) : (
-                          <div className="flex items-center justify-center gap-1">
-                            <span
-                              className={
-                                d.khd > 0 ? "text-sky-400" : "text-zinc-600"
-                              }
-                            >
-                              {d.khd}
-                            </span>
-                            <span className="text-zinc-700">|</span>
-                            <span
-                              className={
-                                d.rts > 0 ? "text-emerald-400" : "text-zinc-600"
-                              }
-                            >
-                              {d.rts}
-                            </span>
+                          <div
+                            className="cursor-pointer group relative"
+                            onClick={() => onRitaseClick(drv.driver_id, drv.name, d.date, d.rts)}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="text-sky-400">{d.khd}</span>
+                              <span className="text-zinc-700">|</span>
+                              <span className={d.rts > 0 ? "text-emerald-400" : "text-zinc-600"}>
+                                {d.rts}
+                              </span>
+                              {d.is_manual && (
+                                <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-amber-400" title="Manual override" />
+                              )}
+                            </div>
+                            <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />
                           </div>
                         )}
                       </td>
@@ -284,6 +283,9 @@ export default function LaporanMingguan() {
   const [exporting, setExporting] = useState(false);
   const [absenceModal, setAbsenceModal] = useState(null);
   const [savingAbsence, setSavingAbsence] = useState(false);
+  const [ritaseModal, setRitaseModal] = useState(null);
+  const [ritaseInput, setRitaseInput] = useState(0);
+  const [savingRitase, setSavingRitase] = useState(false);
 
   const weekEnd = useMemo(() => {
     const d = new Date(weekStart + "T00:00:00");
@@ -384,6 +386,30 @@ export default function LaporanMingguan() {
       toast.error(err.response?.data?.detail || "Gagal menyimpan keterangan");
     } finally {
       setSavingAbsence(false);
+    }
+  };
+
+  const handleRitaseClick = (driverId, driverName, date, currentRts) => {
+    setRitaseInput(currentRts);
+    setRitaseModal({ driverId, driverName, date });
+  };
+
+  const handleSaveRitase = async () => {
+    if (!ritaseModal) return;
+    setSavingRitase(true);
+    try {
+      await axios.post(
+        `${API}/manual-ritase`,
+        { driver_id: ritaseModal.driverId, date: ritaseModal.date, manual_rts: ritaseInput },
+        { headers: getAuthHeader() },
+      );
+      toast.success("Ritase manual disimpan");
+      setRitaseModal(null);
+      fetchReport();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Gagal menyimpan ritase");
+    } finally {
+      setSavingRitase(false);
     }
   };
 
@@ -537,6 +563,7 @@ export default function LaporanMingguan() {
               title="Driver Standar"
               search={search}
               onAbsenceClick={handleAbsenceClick}
+              onRitaseClick={handleRitaseClick}
             />
           </motion.div>
 
@@ -551,6 +578,7 @@ export default function LaporanMingguan() {
               title="Driver Premium"
               search={search}
               onAbsenceClick={handleAbsenceClick}
+              onRitaseClick={handleRitaseClick}
             />
           </motion.div>
 
@@ -624,7 +652,15 @@ export default function LaporanMingguan() {
           </div>
           <div className="flex items-center gap-1.5">
             <Pencil className="w-3 h-3 text-zinc-500" />
-            <span>Klik cell KHD=0 untuk isi keterangan</span>
+            <span>Klik cell KHD=0 untuk isi keterangan absen</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Pencil className="w-3 h-3 text-zinc-500" />
+            <span>Klik cell KHD&gt;0 untuk override ritase manual</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+            <span>Titik amber = ritase telah dioverride manual</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-red-400 font-bold">RENDAH</span>
@@ -697,6 +733,79 @@ export default function LaporanMingguan() {
                   className="px-4 py-2 rounded-lg bg-amber-500 text-black text-sm font-medium hover:bg-amber-400 transition disabled:opacity-50"
                 >
                   {savingAbsence ? "Menyimpan..." : "Simpan"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {ritaseModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setRitaseModal(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-zinc-900 border border-zinc-700/50 rounded-xl shadow-2xl"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Manual Ritase Update</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {ritaseModal.driverName} — {ritaseModal.date}
+                  </p>
+                </div>
+                <button onClick={() => setRitaseModal(null)} className="text-zinc-400 hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs text-zinc-400 font-medium">Driver</label>
+                  <div className="px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300">
+                    {ritaseModal.driverName}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-zinc-400 font-medium">Tanggal</label>
+                  <div className="px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300 font-mono">
+                    {ritaseModal.date}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-zinc-400 font-medium">Total Ritase (override)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={ritaseInput}
+                    onChange={(e) => setRitaseInput(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white focus:outline-none focus:border-amber-500/50 text-center font-mono text-lg"
+                    autoFocus
+                  />
+                  <p className="text-[10px] text-zinc-500">Nilai ini akan menggantikan hitungan otomatis dari sistem.</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-zinc-800">
+                <button
+                  onClick={() => setRitaseModal(null)}
+                  className="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleSaveRitase}
+                  disabled={savingRitase}
+                  className="px-4 py-2 rounded-lg bg-amber-500 text-black text-sm font-bold hover:bg-amber-400 transition disabled:opacity-50"
+                >
+                  {savingRitase ? "Menyimpan..." : "Simpan"}
                 </button>
               </div>
             </motion.div>

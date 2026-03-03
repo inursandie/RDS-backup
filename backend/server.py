@@ -1497,6 +1497,29 @@ async def get_absence_reasons(user: dict = Depends(get_current_user)):
 # =================== WEEKLY REPORT (LAPORAN MINGGUAN) ===================
 
 
+class ManualRitaseRequest(BaseModel):
+    driver_id: str
+    date: str
+    manual_rts: int
+
+
+@api_router.post("/manual-ritase")
+async def set_manual_ritase(data: ManualRitaseRequest,
+                            user: dict = Depends(require_superadmin)):
+    await pool.execute(
+        """INSERT INTO manual_ritase_override (driver_id, date, manual_rts, updated_by, updated_at)
+           VALUES ($1, $2, $3, $4, NOW())
+           ON CONFLICT (driver_id, date) DO UPDATE
+           SET manual_rts = $3, updated_by = $4, updated_at = NOW()""",
+        data.driver_id, data.date, data.manual_rts, user['name'])
+    return {
+        "driver_id": data.driver_id,
+        "date": data.date,
+        "manual_rts": data.manual_rts,
+        "updated_by": user['name']
+    }
+
+
 @api_router.get("/weekly-report")
 async def get_weekly_report(start_date: str = Query(...),
                             end_date: str = Query(...),
@@ -1512,6 +1535,9 @@ async def get_weekly_report(start_date: str = Query(...),
     absence_rows = await pool.fetch(
         "SELECT driver_id, date, reason FROM driver_absences WHERE date >= $1 AND date <= $2",
         start_date, end_date)
+    manual_rows = await pool.fetch(
+        "SELECT driver_id, date, manual_rts FROM manual_ritase_override WHERE date >= $1 AND date <= $2",
+        start_date, end_date)
 
     sij_set = set()
     for r in sij_rows:
@@ -1524,6 +1550,10 @@ async def get_weekly_report(start_date: str = Query(...),
     absence_map = {}
     for r in absence_rows:
         absence_map[(r['driver_id'], r['date'])] = r['reason']
+
+    manual_map = {}
+    for r in manual_rows:
+        manual_map[(r['driver_id'], r['date'])] = r['manual_rts']
 
     from datetime import date as date_type
     start = date_type.fromisoformat(start_date)
@@ -1544,7 +1574,9 @@ async def get_weekly_report(start_date: str = Query(...),
         total_rts = 0
         for day_str in days:
             khd = 1 if (did, day_str) in sij_set else 0
-            rts = ritase_map.get((did, day_str), 0)
+            auto_rts = ritase_map.get((did, day_str), 0)
+            is_manual = (did, day_str) in manual_map
+            rts = manual_map[(did, day_str)] if is_manual else auto_rts
             reason = absence_map.get((did, day_str), "")
             total_khd += khd
             total_rts += rts
@@ -1552,7 +1584,8 @@ async def get_weekly_report(start_date: str = Query(...),
                 "date": day_str,
                 "khd": khd,
                 "rts": rts,
-                "reason": reason
+                "reason": reason,
+                "is_manual": is_manual,
             })
         result.append({
             "driver_id": did,
