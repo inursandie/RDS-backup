@@ -1340,6 +1340,58 @@ async def superadmin_dashboard(user: dict = Depends(require_superadmin)):
     }
 
 
+@api_router.get("/pool-dashboard")
+async def get_pool_dashboard(user: dict = Depends(get_current_user)):
+    today = datetime.now(JAKARTA_TZ).strftime("%Y-%m-%d")
+
+    # 1. Ambil semua driver aktif
+    all_drivers_rows = await pool.fetch(
+        "SELECT driver_id, name, plate FROM drivers WHERE status = 'active'")
+    all_drivers = rows_to_list(all_drivers_rows)
+
+    # 2. Ambil driver yang absen hari ini
+    absent_rows = await pool.fetch(
+        "SELECT driver_id, reason FROM driver_absences WHERE date = $1", today)
+    absent_map = {r['driver_id']: r['reason'] for r in absent_rows}
+
+    # 3. Ambil transaksi SIJ hari ini untuk cari yang On-Duty
+    sij_rows = await pool.fetch(
+        """
+        SELECT driver_id, MIN(time) as first_sij 
+        FROM sij_transactions 
+        WHERE date = $1 AND status = 'active'
+        GROUP BY driver_id
+    """, today)
+    sij_map = {r['driver_id']: r['first_sij'] for r in sij_rows}
+
+    active_list = []
+    absent_list = []
+    unknown_list = []
+
+    # 4. Kelompokkan driver ke 3 kolom
+    for d in all_drivers:
+        did = d['driver_id']
+        if did in sij_map:
+            active_list.append({
+                "name": d['name'],
+                "plate": d['plate'],
+                "time": str(sij_map[did])[:5]  # Ambil Jam:Menit saja
+            })
+        elif did in absent_map:
+            absent_list.append({"name": d['name'], "reason": absent_map[did]})
+        else:
+            unknown_list.append({"name": d['name'], "plate": d['plate']})
+
+    # Urutkan yang aktif berdasarkan jam masuk terbaru
+    active_list.sort(key=lambda x: x['time'], reverse=True)
+
+    return {
+        "active": active_list,
+        "absent": absent_list,
+        "unknown": unknown_list
+    }
+
+
 # =================== AUDIT LOG ===================
 
 AUDIT_SORT_COLS = {"date", "driver_id", "has_sij", "has_trip", "mismatch"}
