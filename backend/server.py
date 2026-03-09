@@ -1,6 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 import os, logging, random, io, csv, jwt, bcrypt, asyncpg, ssl
@@ -26,6 +26,12 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
+
+@app.get("/")
+async def root_health():
+    return {"status": "API is running"}
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,20 +41,6 @@ app.add_middleware(
 )
 
 pool: asyncpg.Pool = None
-
-
-@app.middleware("http")
-async def db_availability_middleware(request: Request, call_next):
-    try:
-        response = await call_next(request)
-        return response
-    except AttributeError as e:
-        if pool is None and "'NoneType'" in str(e):
-            return JSONResponse(
-                status_code=503,
-                content={"detail": "Database unavailable"}
-            )
-        raise
 
 
 async def get_pool() -> asyncpg.Pool:
@@ -2091,11 +2083,6 @@ async def shutdown_event():
 
 
 app.include_router(api_router)
-
-
-@app.get("/")
-async def root_health():
-    return {"status": "API is running"}
 
 
 BUILD_DIR = Path(__file__).parent.parent / "frontend" / "build"
