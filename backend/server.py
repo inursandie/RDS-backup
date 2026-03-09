@@ -1,6 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 import os, logging, random, io, csv, jwt, bcrypt, asyncpg, ssl
@@ -37,7 +37,23 @@ app.add_middleware(
 pool: asyncpg.Pool = None
 
 
+@app.middleware("http")
+async def db_availability_middleware(request: Request, call_next):
+    try:
+        response = await call_next(request)
+        return response
+    except AttributeError as e:
+        if pool is None and "'NoneType'" in str(e):
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Database unavailable"}
+            )
+        raise
+
+
 async def get_pool() -> asyncpg.Pool:
+    if pool is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
     return pool
 
 
@@ -2042,20 +2058,29 @@ async def startup_event():
     database_url = os.environ.get('SUPABASE_DATABASE_URL') or os.environ.get(
         'DATABASE_URL')
     if not database_url:
-        raise RuntimeError(
-            "SUPABASE_DATABASE_URL or DATABASE_URL environment variable is not set"
+        logger.warning(
+            "SUPABASE_DATABASE_URL or DATABASE_URL environment variable is not set. "
+            "Database features will be unavailable until configured."
         )
-    ssl_ctx = ssl.create_default_context()
-    ssl_ctx.check_hostname = False
-    ssl_ctx.verify_mode = ssl.CERT_NONE
-    pool_kwargs = dict(min_size=2, max_size=10, ssl=ssl_ctx)
-    if 'pgbouncer=true' in database_url:
-        database_url = database_url.replace('?pgbouncer=true',
-                                            '').replace('&pgbouncer=true', '')
-        pool_kwargs['statement_cache_size'] = 0
-    pool = await asyncpg.create_pool(database_url, **pool_kwargs)
-    await create_tables()
-    await seed_initial_data()
+        return
+    try:
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+        pool_kwargs = dict(min_size=2, max_size=10, ssl=ssl_ctx)
+        if 'pgbouncer=true' in database_url:
+            database_url = database_url.replace('?pgbouncer=true',
+                                                '').replace('&pgbouncer=true', '')
+            pool_kwargs['statement_cache_size'] = 0
+        pool = await asyncpg.create_pool(database_url, **pool_kwargs)
+        await create_tables()
+        await seed_initial_data()
+        logger.info("Database connection established successfully.")
+    except Exception as e:
+        logger.warning(
+            f"Failed to connect to database during startup: {e}. "
+            "Server will continue running but database features will be unavailable."
+        )
 
 
 @app.on_event("shutdown")
