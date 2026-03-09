@@ -37,20 +37,15 @@ waitForPort = 5000
 
 [[ports]]
 localPort = 5000
-externalPort = 80
+externalPort = 5000
 
 [[ports]]
-localPort = 5001
-externalPort = 3000
+localPort = 5904
+externalPort = 80
 
 [[ports]]
 localPort = 8000
 externalPort = 8000
-exposeLocalhost = true
-
-[[ports]]
-localPort = 8001
-externalPort = 3003
 exposeLocalhost = true
 
 [deployment]
