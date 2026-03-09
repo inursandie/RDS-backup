@@ -2067,6 +2067,12 @@ async def shutdown_event():
 
 app.include_router(api_router)
 
+
+@app.get("/")
+async def root_health():
+    return {"status": "API is running"}
+
+
 BUILD_DIR = Path(__file__).parent.parent / "frontend" / "build"
 if BUILD_DIR.exists():
     app.mount("/static",
