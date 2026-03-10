@@ -8,7 +8,12 @@ import {
 } from 'lucide-react';
 
 const emptyForm = { user_id: '', name: '', email: '', password: '', role: 'admin', shift: '' };
-const ROLE_LABELS = { admin: 'Admin', superadmin: 'Super Admin' };
+const ROLE_LABELS = { admin: 'Admin', superadmin: 'Super Admin', viewer: 'Viewer' };
+const ROLE_ICONS = {
+  superadmin: <Shield className="w-3.5 h-3.5 text-amber-400" />,
+  admin: <User className="w-3.5 h-3.5 text-zinc-400" />,
+  viewer: <Eye className="w-3.5 h-3.5 text-sky-400" />
+};
 const SHIFT_OPTIONS = ['', 'Shift1', 'Shift2'];
 
 export default function UserManagement() {
@@ -159,6 +164,7 @@ export default function UserManagement() {
                 className="w-full px-3 py-2.5 rounded-lg bg-zinc-950/70 border border-zinc-700 focus:border-amber-500/50 outline-none text-zinc-100 text-sm">
                 <option value="admin">Admin</option>
                 <option value="superadmin">Super Admin</option>
+                <option value="viewer">Viewer</option>
               </select>
             </div>
             <div>
@@ -232,8 +238,8 @@ export default function UserManagement() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${u.role === 'superadmin' ? 'bg-amber-500/10' : 'bg-zinc-800'}`}>
-                          {u.role === 'superadmin' ? <Shield className="w-3.5 h-3.5 text-amber-400" /> : <User className="w-3.5 h-3.5 text-zinc-400" />}
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${u.role === 'superadmin' ? 'bg-amber-500/10' : u.role === 'viewer' ? 'bg-sky-500/10' : 'bg-zinc-800'}`}>
+                          {ROLE_ICONS[u.role] || <User className="w-3.5 h-3.5 text-zinc-400" />}
                         </div>
                         <span className="text-zinc-100">{u.name}</span>
                       </div>
@@ -243,6 +249,8 @@ export default function UserManagement() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
                         u.role === 'superadmin'
                           ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          : u.role === 'viewer'
+                          ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
                           : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
                       }`}>
                         {ROLE_LABELS[u.role] || u.role}

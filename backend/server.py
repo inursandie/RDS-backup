@@ -151,7 +151,7 @@ class UserCreateRequest(BaseModel):
     name: str
     email: str
     password: str
-    role: str
+    role: str # admin, superadmin, viewer
     shift: Optional[str] = None
 
 
@@ -159,7 +159,7 @@ class UserUpdateRequest(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     password: Optional[str] = None
-    role: Optional[str] = None
+    role: Optional[str] = None # admin, superadmin, viewer
     shift: Optional[str] = None
 
 
@@ -1166,7 +1166,7 @@ async def get_users(user: dict = Depends(require_superadmin)):
 @api_router.post("/users")
 async def create_user(data: UserCreateRequest,
                       user: dict = Depends(require_superadmin)):
-    if data.role not in ["admin", "superadmin"]:
+    if data.role not in ["admin", "superadmin", "viewer"]:
         raise HTTPException(status_code=400, detail="Role tidak valid")
     existing = await pool.fetchrow(
         "SELECT user_id FROM users WHERE user_id = $1 OR email = $2",
@@ -1196,7 +1196,7 @@ async def update_user(user_id: str,
         update_data['password_hash'] = bcrypt.hashpw(
             update_data.pop('password').encode(), bcrypt.gensalt()).decode()
     if 'role' in update_data and update_data['role'] not in [
-            "admin", "superadmin"
+            "admin", "superadmin", "viewer"
     ]:
         raise HTTPException(status_code=400, detail="Role tidak valid")
     if update_data:
