@@ -2134,7 +2134,11 @@ body{{background:#09090b;color:#fff;font-family:system-ui,-apple-system,sans-ser
 .col-title-unknown{{color:#fb7185}}
 .pulse{{width:12px;height:12px;border-radius:50%;background:#10b981;animation:pulse 2s infinite}}
 @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:0.5}}}}
-.items{{flex:1;overflow-y:auto}}
+@keyframes scroll{{0%{{transform:translateY(0)}}100%{{transform:translateY(-100%)}}}}
+@keyframes marquee{{0%{{transform:translateX(100%)}}100%{{transform:translateX(-100%)}}}}
+.items{{flex:1;overflow:hidden;scrollbar-width:none;position:relative}}
+.items::-webkit-scrollbar{{display:none}}
+.items-scroll{{animation:scroll 30s linear infinite}}
 .item{{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:8px;margin-bottom:8px}}
 .item-active{{background:rgba(39,39,42,0.5);border:1px solid #3f3f46}}
 .item-absent{{background:rgba(39,39,42,0.3);border:1px solid #27272a;opacity:0.7}}
@@ -2147,7 +2151,8 @@ body{{background:#09090b;color:#fff;font-family:system-ui,-apple-system,sans-ser
 .time-label{{color:#71717a;font-size:0.75rem}}
 .reason-badge{{padding:4px 12px;background:#3f3f46;border-radius:9999px;font-size:0.75rem;font-weight:700;color:#d4d4d8}}
 .check-badge{{padding:4px 12px;background:rgba(244,63,94,0.2);border-radius:9999px;font-size:0.75rem;font-weight:700;color:#fb7185}}
-.banner{{background:#f59e0b;padding:12px;color:#09090b;font-weight:700;text-align:center;font-size:1.25rem;white-space:nowrap;overflow:hidden}}
+.banner{{background:#f59e0b;padding:12px;color:#09090b;font-weight:700;text-align:center;font-size:1.25rem;white-space:nowrap;overflow:hidden;display:flex;align-items:center}}
+.banner-text{{animation:marquee 20s linear infinite;display:inline-block}}
 .page{{display:flex;flex-direction:column;height:100vh}}
 </style>
 </head>
@@ -2177,7 +2182,7 @@ body{{background:#09090b;color:#fff;font-family:system-ui,-apple-system,sans-ser
       <div class="items" id="unknown-list">{unknown_html}</div>
     </div>
   </div>
-  <div class="banner">INFO: Tetap utamakan keselamatan kerja | Cek kondisi unit sebelum berangkat | Selalu gunakan seragam yang rapi selama beroperasi.</div>
+  <div class="banner"><span class="banner-text">INFO: Tetap utamakan keselamatan kerja | Cek kondisi unit sebelum berangkat | Selalu gunakan seragam yang rapi selama beroperasi. &nbsp;&nbsp;&nbsp;&nbsp; INFO: Tetap utamakan keselamatan kerja | Cek kondisi unit sebelum berangkat | Selalu gunakan seragam yang rapi selama beroperasi.</span></div>
 </div>
 <script>
 function updateClock(){{
@@ -2197,6 +2202,7 @@ function renderData(data){{
     html+='<div class="item item-active"><div><div class="name">'+esc(d.name)+'</div><div class="plate">'+esc(d.plate)+'</div></div><div style="text-align:right"><div class="time-val">'+esc(d.time)+'</div><div class="time-label">Input SIJ</div></div></div>';
   }});
   al.innerHTML=html;
+  al.className='items items-scroll';
 
   var bl=document.getElementById('absent-list');
   html='';
@@ -2204,6 +2210,7 @@ function renderData(data){{
     html+='<div class="item item-absent"><div class="name" style="color:#d4d4d8">'+esc(d.name)+'</div><span class="reason-badge">'+esc(d.reason)+'</span></div>';
   }});
   bl.innerHTML=html;
+  bl.className='items items-scroll';
 
   var ul=document.getElementById('unknown-list');
   html='';
@@ -2211,6 +2218,7 @@ function renderData(data){{
     html+='<div class="item item-unknown"><div><div class="name name-unknown">'+esc(d.name)+'</div><div class="plate plate-unknown">'+esc(d.plate)+'</div></div><span class="check-badge">Cek Keberadaan</span></div>';
   }});
   ul.innerHTML=html;
+  ul.className='items items-scroll';
 }}
 
 function fetchData(){{
