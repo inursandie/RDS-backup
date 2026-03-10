@@ -1513,7 +1513,7 @@ class ManualRitaseRequest(BaseModel):
 
 @api_router.post("/manual-ritase")
 async def set_manual_ritase(data: ManualRitaseRequest,
-                            user: dict = Depends(require_superadmin)):
+                            user: dict = Depends(require_admin)):
     await pool.execute(
         """INSERT INTO manual_ritase_override (driver_id, date, manual_rts, updated_by, updated_at)
            VALUES ($1, $2, $3, $4, NOW())
