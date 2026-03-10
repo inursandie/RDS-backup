@@ -50,9 +50,7 @@ export default function PoolDashboard() {
           <h1 className="text-3xl font-black text-amber-500 tracking-wider">
             RAJA COMMAND CENTER
           </h1>
-          <p className="text-zinc-400 text-lg mt-1">
-            Status Kehadiran Pool Operasional
-          </p>
+          <p className="text-zinc-400 text-lg mt-1">Status Kehadiran Mitra</p>
         </div>
         <div className="text-right">
           <h2 className="text-5xl font-mono font-bold text-sky-400 tracking-tighter">
@@ -73,7 +71,7 @@ export default function PoolDashboard() {
         <div className="bg-zinc-900 rounded-xl border-t-4 border-emerald-500 p-4 shadow-lg">
           <h3 className="text-xl font-bold text-emerald-400 mb-4 flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-            ON-DUTY (AKTIF)
+            ON-DUTY (HADIR)
           </h3>
           <div className="space-y-3">
             {activeDrivers.map((d, idx) => (
@@ -89,7 +87,7 @@ export default function PoolDashboard() {
                   <p className="text-emerald-400 font-mono font-bold">
                     {d.time}
                   </p>
-                  <p className="text-xs text-zinc-500">First SIJ</p>
+                  <p className="text-xs text-zinc-500">Input SIJ</p>
                 </div>
               </div>
             ))}
@@ -98,7 +96,7 @@ export default function PoolDashboard() {
 
         <div className="bg-zinc-900 rounded-xl border-t-4 border-zinc-500 p-4 shadow-lg">
           <h3 className="text-xl font-bold text-zinc-300 mb-4">
-            IZIN / SAKIT / CUTI
+            KONFIRMASI TIDAK HADIR
           </h3>
           <div className="space-y-3">
             {absentDrivers.map((d, idx) => (
@@ -117,7 +115,7 @@ export default function PoolDashboard() {
 
         <div className="bg-zinc-900 rounded-xl border-t-4 border-rose-500 p-4 shadow-lg">
           <h3 className="text-xl font-bold text-rose-400 mb-4 flex items-center gap-2">
-            BELUM TERDETEKSI
+            BELUM HADIR
           </h3>
           <div className="space-y-3">
             {unknownDrivers.map((d, idx) => (
@@ -140,8 +138,7 @@ export default function PoolDashboard() {
 
       <div className="bg-amber-500 p-3 text-zinc-950 font-bold text-center text-xl overflow-hidden whitespace-nowrap">
         INFO: Tetap utamakan keselamatan kerja | Cek kondisi unit sebelum
-        berangkat | Selalu gunakan seragam RAJA yang rapi selama jam
-        operasional.
+        berangkat | Selalu gunakan seragam yang rapi selama beroperasi.
       </div>
     </div>
   );
