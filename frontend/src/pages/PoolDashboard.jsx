@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 
@@ -9,6 +9,24 @@ export default function PoolDashboard() {
   const [absentDrivers, setAbsentDrivers] = useState([]);
   const [unknownDrivers, setUnknownDrivers] = useState([]);
   const [time, setTime] = useState(new Date().toLocaleTimeString("id-ID"));
+
+  const activeListRef = useRef(null);
+  const absentListRef = useRef(null);
+  const unknownListRef = useRef(null);
+
+  // Auto-scroll function
+  const setupAutoScroll = (containerRef) => {
+    if (!containerRef?.current) return;
+    const container = containerRef.current;
+    const scrollSpeed = 1;
+    const scrollInterval = setInterval(() => {
+      container.scrollTop += scrollSpeed;
+      if (container.scrollTop >= container.scrollHeight - container.clientHeight) {
+        container.scrollTop = 0;
+      }
+    }, 50);
+    return scrollInterval;
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -29,10 +47,19 @@ export default function PoolDashboard() {
       setTime(new Date().toLocaleTimeString("id-ID"));
     }, 1000);
     const dataInterval = setInterval(fetchData, 30000);
+    
+    // Setup auto-scroll for all lists
+    const activeScroll = setupAutoScroll(activeListRef);
+    const absentScroll = setupAutoScroll(absentListRef);
+    const unknownScroll = setupAutoScroll(unknownListRef);
+
     return () => {
       mounted = false;
       clearInterval(clockInterval);
       clearInterval(dataInterval);
+      if (activeScroll) clearInterval(activeScroll);
+      if (absentScroll) clearInterval(absentScroll);
+      if (unknownScroll) clearInterval(unknownScroll);
     };
   }, [API]);
 
@@ -61,12 +88,12 @@ export default function PoolDashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 flex-grow">
-        <div className="bg-zinc-900 rounded-xl border-t-4 border-emerald-500 p-4 shadow-lg">
+        <div className="bg-zinc-900 rounded-xl border-t-4 border-emerald-500 p-4 shadow-lg overflow-hidden">
           <h3 className="text-xl font-bold text-emerald-400 mb-4 flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
             ON-DUTY (HADIR)
           </h3>
-          <div className="space-y-3">
+          <div ref={activeListRef} className="space-y-3 overflow-y-auto scrollbar-hide" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
             {activeDrivers.map((d, idx) => (
               <div
                 key={idx}
@@ -87,11 +114,11 @@ export default function PoolDashboard() {
           </div>
         </div>
 
-        <div className="bg-zinc-900 rounded-xl border-t-4 border-zinc-500 p-4 shadow-lg">
+        <div className="bg-zinc-900 rounded-xl border-t-4 border-zinc-500 p-4 shadow-lg overflow-hidden">
           <h3 className="text-xl font-bold text-zinc-300 mb-4">
             KONFIRMASI TIDAK HADIR
           </h3>
-          <div className="space-y-3">
+          <div ref={absentListRef} className="space-y-3 overflow-y-auto scrollbar-hide" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
             {absentDrivers.map((d, idx) => (
               <div
                 key={idx}
@@ -106,11 +133,11 @@ export default function PoolDashboard() {
           </div>
         </div>
 
-        <div className="bg-zinc-900 rounded-xl border-t-4 border-rose-500 p-4 shadow-lg">
+        <div className="bg-zinc-900 rounded-xl border-t-4 border-rose-500 p-4 shadow-lg overflow-hidden">
           <h3 className="text-xl font-bold text-rose-400 mb-4 flex items-center gap-2">
             BELUM HADIR
           </h3>
-          <div className="space-y-3">
+          <div ref={unknownListRef} className="space-y-3 overflow-y-auto scrollbar-hide" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
             {unknownDrivers.map((d, idx) => (
               <div
                 key={idx}
@@ -129,9 +156,23 @@ export default function PoolDashboard() {
         </div>
       </div>
 
+      <style>{`
+        @keyframes marquee {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }
+        .marquee-text {
+          animation: marquee 45s linear infinite;
+          display: inline-block;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
       <div className="bg-amber-500 p-3 text-zinc-950 font-bold text-center text-xl overflow-hidden whitespace-nowrap">
-        INFO: Tetap utamakan keselamatan kerja | Cek kondisi unit sebelum
-        berangkat | Selalu gunakan seragam yang rapi selama beroperasi.
+        <span className="marquee-text">
+          INFO: Tetap utamakan keselamatan kerja | Cek kondisi unit sebelum berangkat | Selalu gunakan seragam yang rapi selama beroperasi. &nbsp;&nbsp;&nbsp;&nbsp; INFO: Tetap utamakan keselamatan kerja | Cek kondisi unit sebelum berangkat | Selalu gunakan seragam yang rapi selama beroperasi.
+        </span>
       </div>
     </div>
   );
