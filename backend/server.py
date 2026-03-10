@@ -2134,11 +2134,9 @@ body{{background:#09090b;color:#fff;font-family:system-ui,-apple-system,sans-ser
 .col-title-unknown{{color:#fb7185}}
 .pulse{{width:12px;height:12px;border-radius:50%;background:#10b981;animation:pulse 2s infinite}}
 @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:0.5}}}}
-@keyframes scroll{{0%{{transform:translateY(0)}}100%{{transform:translateY(-100%)}}}}
 @keyframes marquee{{0%{{transform:translateX(100%)}}100%{{transform:translateX(-100%)}}}}
-.items{{flex:1;overflow:hidden;scrollbar-width:none;position:relative}}
+.items{{flex:1;overflow-y:auto;scrollbar-width:none}}
 .items::-webkit-scrollbar{{display:none}}
-.items-scroll{{animation:scroll 30s linear infinite}}
 .item{{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:8px;margin-bottom:8px}}
 .item-active{{background:rgba(39,39,42,0.5);border:1px solid #3f3f46}}
 .item-absent{{background:rgba(39,39,42,0.3);border:1px solid #27272a;opacity:0.7}}
@@ -2202,7 +2200,6 @@ function renderData(data){{
     html+='<div class="item item-active"><div><div class="name">'+esc(d.name)+'</div><div class="plate">'+esc(d.plate)+'</div></div><div style="text-align:right"><div class="time-val">'+esc(d.time)+'</div><div class="time-label">Input SIJ</div></div></div>';
   }});
   al.innerHTML=html;
-  al.className='items items-scroll';
 
   var bl=document.getElementById('absent-list');
   html='';
@@ -2210,7 +2207,6 @@ function renderData(data){{
     html+='<div class="item item-absent"><div class="name" style="color:#d4d4d8">'+esc(d.name)+'</div><span class="reason-badge">'+esc(d.reason)+'</span></div>';
   }});
   bl.innerHTML=html;
-  bl.className='items items-scroll';
 
   var ul=document.getElementById('unknown-list');
   html='';
@@ -2218,8 +2214,25 @@ function renderData(data){{
     html+='<div class="item item-unknown"><div><div class="name name-unknown">'+esc(d.name)+'</div><div class="plate plate-unknown">'+esc(d.plate)+'</div></div><span class="check-badge">Cek Keberadaan</span></div>';
   }});
   ul.innerHTML=html;
-  ul.className='items items-scroll';
 }}
+
+function autoScroll(container){{
+  if(!container)return;
+  var scrollSpeed=1;
+  setInterval(function(){{
+    container.scrollTop+=scrollSpeed;
+    if(container.scrollTop>=container.scrollHeight-container.clientHeight){{
+      container.scrollTop=0;
+    }}
+  }},50);
+}}
+
+var activeList=document.getElementById('active-list');
+var absentList=document.getElementById('absent-list');
+var unknownList=document.getElementById('unknown-list');
+autoScroll(activeList);
+autoScroll(absentList);
+autoScroll(unknownList);
 
 function fetchData(){{
   var x=new XMLHttpRequest();
