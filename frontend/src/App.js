@@ -69,9 +69,10 @@ function App() {
               <Route path="/user-management" element={<ViewerGuard><UserManagement /></ViewerGuard>} />
               <Route path="/laporan-mingguan" element={<LaporanMingguan />} />
               <Route path="/revenue-report" element={<RevenueReport />} />
-              <Route path="/dashboard-pool" element={<ViewerGuard><PoolDashboard /></ViewerGuard>} />
+              
             </Route>
           </Route>
+          <Route path="/dashboard-pool" element={<PoolDashboard />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

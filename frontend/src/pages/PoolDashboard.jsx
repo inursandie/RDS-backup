@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { useAuth } from "@/context/AuthContext";
+
+const API = process.env.REACT_APP_API_URL || "/api";
 
 export default function PoolDashboard() {
-  const { getAuthHeader, API } = useAuth();
-
   const [activeDrivers, setActiveDrivers] = useState([]);
   const [absentDrivers, setAbsentDrivers] = useState([]);
   const [unknownDrivers, setUnknownDrivers] = useState([]);
@@ -12,9 +11,7 @@ export default function PoolDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const res = await axios.get(`${API}/pool-dashboard`, {
-        headers: getAuthHeader(),
-      });
+      const res = await axios.get(`${API}/pool-dashboard`);
       setActiveDrivers(res.data.active || []);
       setAbsentDrivers(res.data.absent || []);
       setUnknownDrivers(res.data.unknown || []);

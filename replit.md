@@ -100,6 +100,9 @@ RAJA Digital System v1.0 - A driver management and SIJ (Surat Izin Jalan) transa
   - Frontend API changed from env-var-based URL to relative '/api' path
   - Added CRA proxy to forward /api requests to backend on port 8000
 
+## Public Routes
+- `/dashboard-pool` — Pool Dashboard for TV display. No login required, no sidebar. Backend `GET /api/pool-dashboard` is also public (no auth). Auto-refreshes every 30 seconds.
+
 ## Route Ordering Note
 In FastAPI, static routes (e.g., `/drivers/export/csv`, `/ritase/export/csv`) must be defined BEFORE parameterized routes (e.g., `/drivers/{driver_id}`, `/ritase/{ritase_id}`) to avoid path conflicts.
 

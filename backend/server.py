@@ -1351,7 +1351,7 @@ async def superadmin_dashboard(user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/pool-dashboard")
-async def get_pool_dashboard(user: dict = Depends(require_admin)):
+async def get_pool_dashboard():
     today = datetime.now(JAKARTA_TZ).strftime("%Y-%m-%d")
 
     # 1. Ambil semua driver aktif
