@@ -20,7 +20,6 @@ import UserManagement from "@/pages/UserManagement";
 import LaporanMingguan from "@/pages/LaporanMingguan";
 import RevenueReport from "@/pages/RevenueReport";
 import Layout from "@/components/Layout";
-import PoolDashboard from "@/pages/PoolDashboard";
 
 const VIEWER_ALLOWED_PATHS = ["/dashboard", "/sij-list", "/drivers", "/laporan-mingguan", "/revenue-report", "/"];
 
@@ -72,7 +71,6 @@ function App() {
               
             </Route>
           </Route>
-          <Route path="/dashboard-pool" element={<PoolDashboard />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

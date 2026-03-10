@@ -33,7 +33,8 @@ RAJA Digital System v1.0 - A driver management and SIJ (Surat Izin Jalan) transa
 - `frontend/src/pages/RitaseList.jsx` - Ritase CRUD page
 - `frontend/src/pages/SIJList.jsx` - SIJ List with full CRUD
 - `frontend/craco.config.js` - Dev server config (port 5000, allowedHosts: all)
-- `frontend/package.json` - Includes proxy to http://localhost:8000
+- `frontend/src/setupProxy.js` - CRA proxy config (proxies /api and /pool-dashboard to backend)
+- `frontend/package.json` - Frontend dependencies
 
 ## Login Credentials
 - Admin: admin1@raja.id / admin123 (Shift1)
@@ -101,7 +102,7 @@ RAJA Digital System v1.0 - A driver management and SIJ (Surat Izin Jalan) transa
   - Added CRA proxy to forward /api requests to backend on port 8000
 
 ## Public Routes
-- `/dashboard-pool` — Pool Dashboard for TV display. No login required, no sidebar. Backend `GET /api/pool-dashboard` is also public (no auth). Auto-refreshes every 30 seconds.
+- `/pool-dashboard` — Pool Dashboard (RAJA Command Center) for TV display. Server-side rendered HTML page served directly by the backend (no React needed). No login required. Backend `GET /api/pool-dashboard` is also public (no auth). Data is pre-rendered on page load, auto-refreshes every 30 seconds via XHR.
 
 ## Route Ordering Note
 In FastAPI, static routes (e.g., `/drivers/export/csv`, `/ritase/export/csv`) must be defined BEFORE parameterized routes (e.g., `/drivers/{driver_id}`, `/ritase/{ritase_id}`) to avoid path conflicts.

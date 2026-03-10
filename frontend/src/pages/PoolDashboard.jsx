@@ -1,45 +1,40 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { useAuth } from "@/context/AuthContext";
 
 export default function PoolDashboard() {
+  const { API } = useAuth();
+
   const [activeDrivers, setActiveDrivers] = useState([]);
   const [absentDrivers, setAbsentDrivers] = useState([]);
   const [unknownDrivers, setUnknownDrivers] = useState([]);
   const [time, setTime] = useState(new Date().toLocaleTimeString("id-ID"));
 
-  const fetchDashboardData = async () => {
-    try {
-      console.log("Fetching pool dashboard...");
-      const res = await axios.get("/api/pool-dashboard");
-      console.log("Pool dashboard response:", res.data);
-      setActiveDrivers(res.data.active || []);
-      setAbsentDrivers(res.data.absent || []);
-      setUnknownDrivers(res.data.unknown || []);
-    } catch (error) {
-      console.error("Error fetching pool dashboard:", error.message, error);
-      console.log("Menunggu backend siap, pakai data sementara...");
-      setActiveDrivers([
-        { id: 1, name: "Budi Santoso", plate: "B 1234 RJA", time: "06:15" },
-        { id: 2, name: "Ahmad", plate: "B 5678 RJA", time: "06:30" },
-      ]);
-      setAbsentDrivers([{ id: 3, name: "Yanto", reason: "Sakit" }]);
-      setUnknownDrivers([{ id: 4, name: "Deni", plate: "B 9999 RJA" }]);
-    }
-  };
-
   useEffect(() => {
-    fetchDashboardData();
+    let mounted = true;
+
+    const fetchData = () => {
+      axios.get(`${API}/pool-dashboard`)
+        .then(res => {
+          if (!mounted) return;
+          setActiveDrivers(res.data.active || []);
+          setAbsentDrivers(res.data.absent || []);
+          setUnknownDrivers(res.data.unknown || []);
+        })
+        .catch(() => {});
+    };
+
+    fetchData();
     const clockInterval = setInterval(() => {
       setTime(new Date().toLocaleTimeString("id-ID"));
     }, 1000);
-    const dataInterval = setInterval(() => {
-      fetchDashboardData();
-    }, 30000);
+    const dataInterval = setInterval(fetchData, 30000);
     return () => {
+      mounted = false;
       clearInterval(clockInterval);
       clearInterval(dataInterval);
     };
-  }, []);
+  }, [API]);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col font-sans">

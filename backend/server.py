@@ -1,6 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 import os, logging, random, io, csv, jwt, bcrypt, asyncpg, ssl
@@ -2085,6 +2085,152 @@ async def shutdown_event():
 
 
 app.include_router(api_router)
+
+
+import json as json_module
+
+def _esc(s):
+    return str(s).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace('"',"&quot;")
+
+def _build_pool_html(data):
+    active = data.get("active", [])
+    absent = data.get("absent", [])
+    unknown = data.get("unknown", [])
+
+    active_html = ""
+    for d in active:
+        active_html += f'<div class="item item-active"><div><div class="name">{_esc(d["name"])}</div><div class="plate">{_esc(d["plate"])}</div></div><div style="text-align:right"><div class="time-val">{_esc(d["time"])}</div><div class="time-label">Input SIJ</div></div></div>'
+
+    absent_html = ""
+    for d in absent:
+        absent_html += f'<div class="item item-absent"><div class="name" style="color:#d4d4d8">{_esc(d["name"])}</div><span class="reason-badge">{_esc(d["reason"])}</span></div>'
+
+    unknown_html = ""
+    for d in unknown:
+        unknown_html += f'<div class="item item-unknown"><div><div class="name name-unknown">{_esc(d["name"])}</div><div class="plate plate-unknown">{_esc(d["plate"])}</div></div><span class="check-badge">Cek Keberadaan</span></div>'
+
+    return f"""<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAJA Command Center</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{background:#09090b;color:#fff;font-family:system-ui,-apple-system,sans-serif;overflow:hidden}}
+.header{{display:flex;justify-content:space-between;align-items:center;padding:24px;background:#18181b;border-bottom:2px solid #27272a}}
+.title{{font-size:1.875rem;font-weight:900;color:#f59e0b;letter-spacing:0.05em}}
+.subtitle{{color:#a1a1aa;font-size:1.125rem;margin-top:4px}}
+.clock{{font-size:3rem;font-family:monospace;font-weight:700;color:#38bdf8;text-align:right}}
+.date{{color:#a1a1aa;font-size:1.125rem;margin-top:4px;text-align:right}}
+.grid{{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;padding:24px;flex:1;overflow:hidden}}
+.col{{background:#18181b;border-radius:12px;padding:16px;box-shadow:0 4px 6px rgba(0,0,0,0.3);overflow-y:auto;display:flex;flex-direction:column}}
+.col-active{{border-top:4px solid #10b981}}
+.col-absent{{border-top:4px solid #71717a}}
+.col-unknown{{border-top:4px solid #f43f5e}}
+.col-title{{font-size:1.25rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}}
+.col-title-active{{color:#34d399}}
+.col-title-absent{{color:#d4d4d8}}
+.col-title-unknown{{color:#fb7185}}
+.pulse{{width:12px;height:12px;border-radius:50%;background:#10b981;animation:pulse 2s infinite}}
+@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:0.5}}}}
+.items{{flex:1;overflow-y:auto}}
+.item{{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:8px;margin-bottom:8px}}
+.item-active{{background:rgba(39,39,42,0.5);border:1px solid #3f3f46}}
+.item-absent{{background:rgba(39,39,42,0.3);border:1px solid #27272a;opacity:0.7}}
+.item-unknown{{background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.2)}}
+.name{{font-weight:700;font-size:1.125rem}}
+.name-unknown{{color:#fecdd3}}
+.plate{{color:#a1a1aa;font-size:0.875rem}}
+.plate-unknown{{color:rgba(244,63,94,0.6)}}
+.time-val{{color:#34d399;font-family:monospace;font-weight:700}}
+.time-label{{color:#71717a;font-size:0.75rem}}
+.reason-badge{{padding:4px 12px;background:#3f3f46;border-radius:9999px;font-size:0.75rem;font-weight:700;color:#d4d4d8}}
+.check-badge{{padding:4px 12px;background:rgba(244,63,94,0.2);border-radius:9999px;font-size:0.75rem;font-weight:700;color:#fb7185}}
+.banner{{background:#f59e0b;padding:12px;color:#09090b;font-weight:700;text-align:center;font-size:1.25rem;white-space:nowrap;overflow:hidden}}
+.page{{display:flex;flex-direction:column;height:100vh}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="title">RAJA COMMAND CENTER</div>
+      <div class="subtitle">Status Kehadiran Mitra</div>
+    </div>
+    <div>
+      <div class="clock" id="clock"></div>
+      <div class="date" id="date"></div>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="col col-active">
+      <div class="col-title col-title-active"><span class="pulse"></span> ON-DUTY (HADIR)</div>
+      <div class="items" id="active-list">{active_html}</div>
+    </div>
+    <div class="col col-absent">
+      <div class="col-title col-title-absent">KONFIRMASI TIDAK HADIR</div>
+      <div class="items" id="absent-list">{absent_html}</div>
+    </div>
+    <div class="col col-unknown">
+      <div class="col-title col-title-unknown">BELUM HADIR</div>
+      <div class="items" id="unknown-list">{unknown_html}</div>
+    </div>
+  </div>
+  <div class="banner">INFO: Tetap utamakan keselamatan kerja | Cek kondisi unit sebelum berangkat | Selalu gunakan seragam yang rapi selama beroperasi.</div>
+</div>
+<script>
+function updateClock(){{
+  var now=new Date();
+  document.getElementById('clock').textContent=now.toLocaleTimeString('id-ID');
+  document.getElementById('date').textContent=now.toLocaleDateString('id-ID',{{weekday:'long',year:'numeric',month:'long',day:'numeric'}});
+}}
+setInterval(updateClock,1000);
+updateClock();
+
+function esc(s){{return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}}
+
+function renderData(data){{
+  var al=document.getElementById('active-list');
+  var html='';
+  (data.active||[]).forEach(function(d){{
+    html+='<div class="item item-active"><div><div class="name">'+esc(d.name)+'</div><div class="plate">'+esc(d.plate)+'</div></div><div style="text-align:right"><div class="time-val">'+esc(d.time)+'</div><div class="time-label">Input SIJ</div></div></div>';
+  }});
+  al.innerHTML=html;
+
+  var bl=document.getElementById('absent-list');
+  html='';
+  (data.absent||[]).forEach(function(d){{
+    html+='<div class="item item-absent"><div class="name" style="color:#d4d4d8">'+esc(d.name)+'</div><span class="reason-badge">'+esc(d.reason)+'</span></div>';
+  }});
+  bl.innerHTML=html;
+
+  var ul=document.getElementById('unknown-list');
+  html='';
+  (data.unknown||[]).forEach(function(d){{
+    html+='<div class="item item-unknown"><div><div class="name name-unknown">'+esc(d.name)+'</div><div class="plate plate-unknown">'+esc(d.plate)+'</div></div><span class="check-badge">Cek Keberadaan</span></div>';
+  }});
+  ul.innerHTML=html;
+}}
+
+function fetchData(){{
+  var x=new XMLHttpRequest();
+  x.open('GET','/api/pool-dashboard',true);
+  x.onload=function(){{
+    if(x.status===200){{try{{renderData(JSON.parse(x.responseText))}}catch(e){{}}}}
+  }};
+  x.send();
+}}
+setInterval(fetchData,30000);
+</script>
+</body>
+</html>"""
+
+
+@app.get("/pool-dashboard", response_class=HTMLResponse)
+async def pool_dashboard_page():
+    data = await get_pool_dashboard()
+    return _build_pool_html(data)
 
 
 BUILD_DIR = Path(__file__).parent.parent / "frontend" / "build"
