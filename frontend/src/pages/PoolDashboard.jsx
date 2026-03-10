@@ -30,6 +30,7 @@ export default function PoolDashboard() {
 
   useEffect(() => {
     let mounted = true;
+    let scrollIntervals = [];
 
     const fetchData = () => {
       axios.get(`${API}/pool-dashboard`)
@@ -48,23 +49,33 @@ export default function PoolDashboard() {
     }, 1000);
     const dataInterval = setInterval(fetchData, 30000);
     
-    // Setup auto-scroll for all lists
-    const activeScroll = setupAutoScroll(activeListRef);
-    const absentScroll = setupAutoScroll(absentListRef);
-    const unknownScroll = setupAutoScroll(unknownListRef);
-
     return () => {
       mounted = false;
       clearInterval(clockInterval);
       clearInterval(dataInterval);
-      if (activeScroll) clearInterval(activeScroll);
-      if (absentScroll) clearInterval(absentScroll);
-      if (unknownScroll) clearInterval(unknownScroll);
+      scrollIntervals.forEach(interval => clearInterval(interval));
     };
   }, [API]);
 
+  // Auto-scroll setup - runs after data loads
+  useEffect(() => {
+    let scrollIntervals = [];
+    
+    const activeScroll = setupAutoScroll(activeListRef);
+    const absentScroll = setupAutoScroll(absentListRef);
+    const unknownScroll = setupAutoScroll(unknownListRef);
+    
+    if (activeScroll) scrollIntervals.push(activeScroll);
+    if (absentScroll) scrollIntervals.push(absentScroll);
+    if (unknownScroll) scrollIntervals.push(unknownScroll);
+
+    return () => {
+      scrollIntervals.forEach(interval => clearInterval(interval));
+    };
+  }, [activeDrivers, absentDrivers, unknownDrivers]);
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col font-sans">
+    <div className="h-screen bg-zinc-950 text-white flex flex-col font-sans overflow-hidden">
       <div className="flex justify-between items-center p-6 bg-zinc-900 border-b-2 border-zinc-800">
         <div>
           <h1 className="text-3xl font-black text-amber-500 tracking-wider">
@@ -87,13 +98,13 @@ export default function PoolDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 flex-grow">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 flex-1 overflow-hidden">
         <div className="bg-zinc-900 rounded-xl border-t-4 border-emerald-500 p-4 shadow-lg overflow-hidden">
           <h3 className="text-xl font-bold text-emerald-400 mb-4 flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
             ON-DUTY (HADIR)
           </h3>
-          <div ref={activeListRef} className="space-y-3 overflow-y-auto scrollbar-hide" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+          <div ref={activeListRef} className="h-full overflow-y-auto scrollbar-hide space-y-3" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
             {activeDrivers.map((d, idx) => (
               <div
                 key={idx}
@@ -118,7 +129,7 @@ export default function PoolDashboard() {
           <h3 className="text-xl font-bold text-zinc-300 mb-4">
             KONFIRMASI TIDAK HADIR
           </h3>
-          <div ref={absentListRef} className="space-y-3 overflow-y-auto scrollbar-hide" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+          <div ref={absentListRef} className="h-full overflow-y-auto scrollbar-hide space-y-3" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
             {absentDrivers.map((d, idx) => (
               <div
                 key={idx}
@@ -137,7 +148,7 @@ export default function PoolDashboard() {
           <h3 className="text-xl font-bold text-rose-400 mb-4 flex items-center gap-2">
             BELUM HADIR
           </h3>
-          <div ref={unknownListRef} className="space-y-3 overflow-y-auto scrollbar-hide" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+          <div ref={unknownListRef} className="h-full overflow-y-auto scrollbar-hide space-y-3" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
             {unknownDrivers.map((d, idx) => (
               <div
                 key={idx}
