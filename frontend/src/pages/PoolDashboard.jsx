@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 
-const API = process.env.REACT_APP_API_URL || "/api";
-
 export default function PoolDashboard() {
   const [activeDrivers, setActiveDrivers] = useState([]);
   const [absentDrivers, setAbsentDrivers] = useState([]);
@@ -11,11 +9,14 @@ export default function PoolDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const res = await axios.get(`${API}/pool-dashboard`);
+      console.log("Fetching pool dashboard...");
+      const res = await axios.get("/api/pool-dashboard");
+      console.log("Pool dashboard response:", res.data);
       setActiveDrivers(res.data.active || []);
       setAbsentDrivers(res.data.absent || []);
       setUnknownDrivers(res.data.unknown || []);
     } catch (error) {
+      console.error("Error fetching pool dashboard:", error.message, error);
       console.log("Menunggu backend siap, pakai data sementara...");
       setActiveDrivers([
         { id: 1, name: "Budi Santoso", plate: "B 1234 RJA", time: "06:15" },
