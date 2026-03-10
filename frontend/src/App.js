@@ -20,6 +20,7 @@ import UserManagement from "@/pages/UserManagement";
 import LaporanMingguan from "@/pages/LaporanMingguan";
 import RevenueReport from "@/pages/RevenueReport";
 import Layout from "@/components/Layout";
+import PoolDashboard from "@/pages/PoolDashboard";
 
 const VIEWER_ALLOWED_PATHS = ["/dashboard", "/sij-list", "/drivers", "/laporan-mingguan", "/revenue-report", "/"];
 
@@ -56,6 +57,7 @@ function App() {
         <Toaster theme="dark" position="top-right" richColors />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/dashboard-pool" element={<PoolDashboard />} />
           <Route element={<PrivateRoute />}>
             <Route element={<Layout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
