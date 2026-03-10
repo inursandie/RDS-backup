@@ -22,6 +22,8 @@ import RevenueReport from "@/pages/RevenueReport";
 import Layout from "@/components/Layout";
 import PoolDashboard from "@/pages/PoolDashboard";
 
+const VIEWER_ALLOWED_PATHS = ["/dashboard", "/sij-list", "/drivers", "/laporan-mingguan", "/revenue-report", "/"];
+
 const PrivateRoute = () => {
   const { user, loading } = useAuth();
   if (loading)
@@ -34,6 +36,12 @@ const PrivateRoute = () => {
     );
   if (!user) return <Navigate to="/login" replace />;
   return <Outlet />;
+};
+
+const ViewerGuard = ({ children }) => {
+  const { user } = useAuth();
+  if (user?.role === "viewer") return <Navigate to="/dashboard" replace />;
+  return children;
 };
 
 const DashboardPage = () => {
@@ -53,15 +61,15 @@ function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/sij" element={<SIJInput />} />
+              <Route path="/sij" element={<ViewerGuard><SIJInput /></ViewerGuard>} />
               <Route path="/sij-list" element={<SIJList />} />
-              <Route path="/ritase" element={<RitaseList />} />
+              <Route path="/ritase" element={<ViewerGuard><RitaseList /></ViewerGuard>} />
               <Route path="/drivers" element={<Drivers />} />
-              <Route path="/audit" element={<AuditLog />} />
-              <Route path="/user-management" element={<UserManagement />} />
+              <Route path="/audit" element={<ViewerGuard><AuditLog /></ViewerGuard>} />
+              <Route path="/user-management" element={<ViewerGuard><UserManagement /></ViewerGuard>} />
               <Route path="/laporan-mingguan" element={<LaporanMingguan />} />
               <Route path="/revenue-report" element={<RevenueReport />} />
-              <Route path="/dashboard-pool" element={<PoolDashboard />} />
+              <Route path="/dashboard-pool" element={<ViewerGuard><PoolDashboard /></ViewerGuard>} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

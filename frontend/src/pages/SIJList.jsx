@@ -241,6 +241,7 @@ export default function SIJList() {
   const perPage = 15;
 
   const isSuperAdmin = user?.role === "superadmin";
+  const isViewer = user?.role === "viewer";
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -490,12 +491,14 @@ export default function SIJList() {
               <p className="text-zinc-500 text-xs">Riwayat transaksi SIJ</p>
             </div>
           </div>
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 transition-all"
-          >
-            <Plus className="w-3.5 h-3.5" /> Tambah SIJ
-          </button>
+          {!isViewer && (
+            <button
+              onClick={openAdd}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" /> Tambah SIJ
+            </button>
+          )}
         </div>
       </motion.div>
 
@@ -651,7 +654,7 @@ export default function SIJList() {
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          {isSuperAdmin && (
+                          {isSuperAdmin && !isViewer && (
                             <>
                               <button
                                 onClick={() => openEdit(tx)}

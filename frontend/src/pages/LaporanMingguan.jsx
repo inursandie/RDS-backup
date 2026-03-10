@@ -51,7 +51,7 @@ function formatDateShort(str) {
   return `${d.getDate()}/${d.getMonth() + 1}`;
 }
 
-function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseClick }) {
+function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseClick, isViewer }) {
   const filtered = useMemo(() => {
     if (!search.trim()) return drivers;
     const q = search.toLowerCase();
@@ -167,8 +167,8 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
                       >
                         {hasReason ? (
                           <div
-                            className="cursor-pointer group"
-                            onClick={() =>
+                            className={isViewer ? "" : "cursor-pointer group"}
+                            onClick={isViewer ? undefined : () =>
                               onAbsenceClick(
                                 drv.driver_id,
                                 drv.name,
@@ -183,12 +183,12 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
                             <div className="text-[8px] text-zinc-500 mt-0.5">
                               RTS: {d.rts}
                             </div>
-                            <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />
+                            {!isViewer && <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />}
                           </div>
                         ) : isAbsent ? (
                           <div
-                            className="cursor-pointer group"
-                            onClick={() =>
+                            className={isViewer ? "" : "cursor-pointer group"}
+                            onClick={isViewer ? undefined : () =>
                               onAbsenceClick(
                                 drv.driver_id,
                                 drv.name,
@@ -225,12 +225,12 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
                                 <AlertTriangle className="w-2.5 h-2.5" /> BOCOR
                               </div>
                             )}
-                            <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />
+                            {!isViewer && <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />}
                           </div>
                         ) : (
                           <div
-                            className="cursor-pointer group relative"
-                            onClick={() => onRitaseClick(drv.driver_id, drv.name, d.date, d.rts)}
+                            className={isViewer ? "relative" : "cursor-pointer group relative"}
+                            onClick={isViewer ? undefined : () => onRitaseClick(drv.driver_id, drv.name, d.date, d.rts)}
                           >
                             <div className="flex items-center justify-center gap-1">
                               <span className="text-sky-400">{d.khd}</span>
@@ -242,7 +242,7 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
                                 <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-amber-400" title="Manual override" />
                               )}
                             </div>
-                            <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />
+                            {!isViewer && <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />}
                           </div>
                         )}
                       </td>
@@ -272,7 +272,8 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
 }
 
 export default function LaporanMingguan() {
-  const { getAuthHeader, API } = useAuth();
+  const { getAuthHeader, API, user } = useAuth();
+  const isViewer = user?.role === "viewer";
   const [weekStart, setWeekStart] = useState(() => {
     const mon = getMonday(new Date());
     return formatDateISO(mon);
@@ -564,6 +565,7 @@ export default function LaporanMingguan() {
               search={search}
               onAbsenceClick={handleAbsenceClick}
               onRitaseClick={handleRitaseClick}
+              isViewer={isViewer}
             />
           </motion.div>
 
@@ -579,6 +581,7 @@ export default function LaporanMingguan() {
               search={search}
               onAbsenceClick={handleAbsenceClick}
               onRitaseClick={handleRitaseClick}
+              isViewer={isViewer}
             />
           </motion.div>
 

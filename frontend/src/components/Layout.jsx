@@ -24,7 +24,7 @@ const navItems = [
     icon: LayoutDashboard,
     label: "Dashboard",
     path: "/dashboard",
-    roles: ["admin", "superadmin"],
+    roles: ["admin", "superadmin", "viewer"],
   },
   {
     icon: FileText,
@@ -36,7 +36,7 @@ const navItems = [
     icon: List,
     label: "List SIJ",
     path: "/sij-list",
-    roles: ["admin", "superadmin"],
+    roles: ["admin", "superadmin", "viewer"],
   },
   {
     icon: Truck,
@@ -48,19 +48,19 @@ const navItems = [
     icon: Users,
     label: "Data Driver",
     path: "/drivers",
-    roles: ["superadmin"],
+    roles: ["superadmin", "viewer"],
   },
   {
     icon: CalendarRange,
     label: "Laporan Mingguan",
     path: "/laporan-mingguan",
-    roles: ["admin", "superadmin"],
+    roles: ["admin", "superadmin", "viewer"],
   },
   {
     icon: TrendingUp,
     label: "Revenue Report",
     path: "/revenue-report",
-    roles: ["superadmin"],
+    roles: ["superadmin", "viewer"],
   },
   {
     icon: ClipboardList,
@@ -77,7 +77,7 @@ const navItems = [
 ];
 
 const SHIFT_COLORS = { Shift1: "text-amber-400", Shift2: "text-sky-400" };
-const ROLE_LABELS = { admin: "Admin", superadmin: "Super Admin" };
+const ROLE_LABELS = { admin: "Admin", superadmin: "Super Admin", viewer: "Viewer" };
 
 export default function Layout() {
   const { user, logout } = useAuth();

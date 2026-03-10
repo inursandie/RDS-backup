@@ -941,7 +941,7 @@ async def get_ritase(date_from: Optional[str] = None,
                      search: Optional[str] = None,
                      sort_by: str = "created_at",
                      sort_dir: str = "desc",
-                     user: dict = Depends(get_current_user)):
+                     user: dict = Depends(require_admin)):
     conditions = []
     params = []
     idx = 1
@@ -992,7 +992,7 @@ async def create_ritase(data: RitaseCreateRequest,
 @api_router.get("/ritase/export/csv")
 async def export_ritase_csv(date_from: Optional[str] = None,
                             date_to: Optional[str] = None,
-                            user: dict = Depends(get_current_user)):
+                            user: dict = Depends(require_admin)):
     conditions = []
     params = []
     idx = 1
@@ -1028,7 +1028,7 @@ async def export_ritase_csv(date_from: Optional[str] = None,
 @api_router.get("/ritase/export/pdf")
 async def export_ritase_pdf(date_from: Optional[str] = None,
                             date_to: Optional[str] = None,
-                            user: dict = Depends(get_current_user)):
+                            user: dict = Depends(require_admin)):
     conditions = []
     params = []
     idx = 1
@@ -1232,7 +1232,7 @@ async def delete_user(user_id: str,
 
 
 @api_router.get("/dashboard/admin")
-async def admin_dashboard(user: dict = Depends(require_admin)):
+async def admin_dashboard(user: dict = Depends(get_current_user)):
     shift = user.get('shift', detect_shift())
     today = datetime.now(JAKARTA_TZ).strftime("%Y-%m-%d")
 
@@ -1349,7 +1349,7 @@ async def superadmin_dashboard(user: dict = Depends(require_superadmin)):
 
 
 @api_router.get("/pool-dashboard")
-async def get_pool_dashboard(user: dict = Depends(get_current_user)):
+async def get_pool_dashboard(user: dict = Depends(require_admin)):
     today = datetime.now(JAKARTA_TZ).strftime("%Y-%m-%d")
 
     # 1. Ambil semua driver aktif
@@ -1410,7 +1410,7 @@ async def get_audit_log(date: Optional[str] = None,
                         search: Optional[str] = None,
                         sort_by: str = "date",
                         sort_dir: str = "desc",
-                        user: dict = Depends(get_current_user)):
+                        user: dict = Depends(require_admin)):
     conditions = []
     params = []
     idx = 1
@@ -1433,7 +1433,7 @@ async def get_audit_log(date: Optional[str] = None,
 
 @api_router.get("/audit/export")
 async def export_audit_csv(date: Optional[str] = None,
-                           user: dict = Depends(get_current_user)):
+                           user: dict = Depends(require_admin)):
     if date:
         rows = await pool.fetch(
             "SELECT date, driver_id, has_sij, has_trip, mismatch FROM audit_log WHERE date = $1 ORDER BY date DESC",

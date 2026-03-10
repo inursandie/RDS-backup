@@ -190,6 +190,7 @@ export default function Drivers() {
   const [actionLoading, setActionLoading] = useState(null);
   const [exporting, setExporting] = useState(false);
   const isSuperAdmin = user?.role === 'superadmin';
+  const isViewer = user?.role === 'viewer';
 
   const fetchDrivers = async () => {
     try {
@@ -312,7 +313,7 @@ export default function Drivers() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-black border border-amber-400 hover:bg-amber-400 text-xs font-bold transition-all disabled:opacity-50">
             <FileDown className="w-3.5 h-3.5" /> PDF
           </button>
-          {isSuperAdmin && (
+          {isSuperAdmin && !isViewer && (
             <button onClick={() => setShowCreate(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white border border-emerald-500 hover:bg-emerald-500 text-xs font-bold transition-all">
               <Plus className="w-3.5 h-3.5" /> Tambah
@@ -393,40 +394,44 @@ export default function Drivers() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          data-testid={`edit-driver-${d.driver_id}`}
-                          onClick={() => setEditDriver(d)}
-                          className="p-1.5 rounded text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        {d.status !== 'suspend' ? (
-                          <button
-                            data-testid={`suspend-driver-${d.driver_id}`}
-                            onClick={() => handleSuspend(d.driver_id, d.name)}
-                            disabled={actionLoading === d.driver_id}
-                            className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-50"
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                          </button>
-                        ) : (
-                          <button
-                            data-testid={`activate-driver-${d.driver_id}`}
-                            onClick={() => handleActivate(d.driver_id, d.name)}
-                            disabled={actionLoading === d.driver_id}
-                            className="p-1.5 rounded text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all disabled:opacity-50"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => handleDelete(d.driver_id, d.name)}
-                            disabled={actionLoading === d.driver_id}
-                            className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-50"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        {!isViewer && (
+                          <>
+                            <button
+                              data-testid={`edit-driver-${d.driver_id}`}
+                              onClick={() => setEditDriver(d)}
+                              className="p-1.5 rounded text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            {d.status !== 'suspend' ? (
+                              <button
+                                data-testid={`suspend-driver-${d.driver_id}`}
+                                onClick={() => handleSuspend(d.driver_id, d.name)}
+                                disabled={actionLoading === d.driver_id}
+                                className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-50"
+                              >
+                                <Ban className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <button
+                                data-testid={`activate-driver-${d.driver_id}`}
+                                onClick={() => handleActivate(d.driver_id, d.name)}
+                                disabled={actionLoading === d.driver_id}
+                                className="p-1.5 rounded text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all disabled:opacity-50"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {isSuperAdmin && (
+                              <button
+                                onClick={() => handleDelete(d.driver_id, d.name)}
+                                disabled={actionLoading === d.driver_id}
+                                className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>
