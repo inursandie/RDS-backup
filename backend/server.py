@@ -2150,7 +2150,7 @@ body{{background:#09090b;color:#fff;font-family:system-ui,-apple-system,sans-ser
 .reason-badge{{padding:4px 12px;background:#3f3f46;border-radius:9999px;font-size:0.75rem;font-weight:700;color:#d4d4d8}}
 .check-badge{{padding:4px 12px;background:rgba(244,63,94,0.2);border-radius:9999px;font-size:0.75rem;font-weight:700;color:#fb7185}}
 .banner{{background:#f59e0b;padding:12px;color:#09090b;font-weight:700;text-align:center;font-size:1.25rem;white-space:nowrap;overflow:hidden;display:flex;align-items:center}}
-.banner-text{{animation:marquee 20s linear infinite;display:inline-block}}
+.banner-text{{animation:marquee 45s linear infinite;display:inline-block}}
 .page{{display:flex;flex-direction:column;height:100vh}}
 </style>
 </head>
