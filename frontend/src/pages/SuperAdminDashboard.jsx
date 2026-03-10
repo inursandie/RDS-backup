@@ -157,7 +157,8 @@ function LineSVGChart({ data }) {
 }
 
 export default function SuperAdminDashboard() {
-  const { getAuthHeader, API } = useAuth();
+  const { getAuthHeader, API, user } = useAuth();
+  const isViewer = user?.role === "viewer";
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState(30);
@@ -300,7 +301,7 @@ export default function SuperAdminDashboard() {
                     <th className="text-left px-4 py-3 text-label">Nama</th>
                     <th className="text-left px-4 py-3 text-label">Mismatch</th>
                     <th className="text-left px-4 py-3 text-label">Status</th>
-                    <th className="text-right px-4 py-3 text-label">Aksi</th>
+                    {!isViewer && <th className="text-right px-4 py-3 text-label">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -314,6 +315,7 @@ export default function SuperAdminDashboard() {
                         </td>
                         <td className="px-4 py-3"><span className={'font-bold font-mono text-sm ' + mc}>{d.mismatch_count}x</span></td>
                         <td className="px-4 py-3"><StatusBadge status={d.status} /></td>
+                        {!isViewer && (
                         <td className="px-4 py-3 text-right">
                           {d.status !== 'suspend' ? (
                             <button
@@ -329,6 +331,7 @@ export default function SuperAdminDashboard() {
                             <span className="text-xs text-zinc-600 font-mono">suspended</span>
                           )}
                         </td>
+                        )}
                       </tr>
                     );
                   })}

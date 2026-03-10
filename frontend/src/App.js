@@ -46,7 +46,7 @@ const ViewerGuard = ({ children }) => {
 
 const DashboardPage = () => {
   const { user } = useAuth();
-  if (user?.role === "superadmin") return <SuperAdminDashboard />;
+  if (user?.role === "superadmin" || user?.role === "viewer") return <SuperAdminDashboard />;
   return <AdminDashboard />;
 };
 

@@ -45,8 +45,9 @@ RAJA Digital System v1.0 - A driver management and SIJ (Surat Izin Jalan) transa
 - **admin**: Access to operational pages (Dashboard, SIJ, Ritase, Laporan, Audit, Pool Dashboard) + write operations
 - **viewer**: Read-only access to exactly 5 pages: Dashboard, List SIJ, Data Driver, Laporan Mingguan, Revenue Report
   - Frontend: ViewerGuard in App.js redirects viewer away from non-allowed routes; sidebar only shows 5 items
-  - Backend: Non-viewer GET endpoints (ritase, audit, pool-dashboard) use `require_admin`; all write endpoints use `require_admin`/`require_superadmin`
-  - UI: Action buttons (add/edit/delete) hidden via `isViewer` checks in SIJList, Drivers, LaporanMingguan
+  - Dashboard: Viewer sees SuperAdmin dashboard (same as superadmin) with suspend buttons hidden
+  - Backend: Non-viewer GET endpoints (ritase, audit, pool-dashboard) use `require_admin`; GET /dashboard/superadmin allows superadmin+viewer; all write endpoints use `require_admin`/`require_superadmin`
+  - UI: Action buttons (add/edit/delete/suspend) hidden via `isViewer` checks in SIJList, Drivers, LaporanMingguan, SuperAdminDashboard
 
 ## Recent Changes
 - **2026-02-25**: Added configurable API base URL for external frontend deployments (e.g. Vercel)

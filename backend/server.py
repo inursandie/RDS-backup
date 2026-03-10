@@ -1262,7 +1262,9 @@ async def admin_dashboard(user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/dashboard/superadmin")
-async def superadmin_dashboard(user: dict = Depends(require_superadmin)):
+async def superadmin_dashboard(user: dict = Depends(get_current_user)):
+    if user.get('role') not in ['superadmin', 'viewer']:
+        raise HTTPException(status_code=403, detail="Akses ditolak")
     now = datetime.now(JAKARTA_TZ)
     today = now.strftime("%Y-%m-%d")
     current_month = now.strftime("%Y-%m")
