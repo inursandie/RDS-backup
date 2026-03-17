@@ -22,7 +22,7 @@ JAKARTA_TZ = ZoneInfo('Asia/Jakarta')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(title="RAJA Digital System v1.0")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
