@@ -51,7 +51,7 @@ const printReceiptBrowser = (tx, plate) => {
         <tr><td>Driver</td><td>: ${tx.driver_name}</td></tr>
         <tr><td>Plat No.</td><td>: ${plate || "-"}</td></tr>
         <tr><td>Kategori</td><td>: ${tx.category === "premium" ? "Grab Premium" : "Grab Standar"}</td></tr>
-        <tr><td>Tanggal</td><td>: ${tx.date} | ${tx.time.substring(0, 5)}</td></tr>
+        <tr><td>Tanggal</td><td>: ${new Date().toLocaleDateString("id-ID")} | ${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</td></tr>
         <tr><td>Admin</td><td>: ${tx.admin_name}</td></tr>
       </table>
       <div class="subtitle" style="text-align: center !important; margin-top: 8px;">Harap selalu menjaga performa, pelayanan dan kedisiplinan dalam bekerja.</div>
