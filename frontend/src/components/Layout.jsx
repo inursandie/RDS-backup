@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 import {
   LayoutDashboard,
   FileText,
@@ -79,11 +80,50 @@ const navItems = [
 const SHIFT_COLORS = { Shift1: "text-amber-400", Shift2: "text-sky-400" };
 const ROLE_LABELS = { admin: "Admin", superadmin: "Super Admin", viewer: "Viewer" };
 
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
+const ACTIVITY_EVENTS = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const timerRef = useRef(null);
+
+  const handleAutoLogout = useCallback(() => {
+    logout();
+    toast.error("Sesi Anda telah berakhir karena tidak ada aktivitas. Silakan login kembali.", {
+      duration: 6000,
+    });
+    navigate("/login");
+  }, [logout, navigate]);
+
+  const resetTimer = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(handleAutoLogout, INACTIVITY_TIMEOUT);
+  }, [handleAutoLogout]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    resetTimer();
+    ACTIVITY_EVENTS.forEach((event) =>
+      window.addEventListener(event, resetTimer, { passive: true })
+    );
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      ACTIVITY_EVENTS.forEach((event) =>
+        window.removeEventListener(event, resetTimer)
+      );
+    };
+  }, [user, resetTimer]);
+
+  const handleLogout = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    logout();
+    navigate("/login");
+  };
 
   const filteredNav = navItems.filter((item) =>
     item.roles.includes(user?.role),
@@ -169,7 +209,7 @@ export default function Layout() {
         </div>
         <button
           data-testid="logout-button"
-          onClick={logout}
+          onClick={handleLogout}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-zinc-500 hover:text-red-400 hover:bg-red-900/10 transition-all duration-200"
         >
           <LogOut className="w-4 h-4" />
