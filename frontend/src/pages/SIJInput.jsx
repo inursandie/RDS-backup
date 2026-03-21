@@ -12,6 +12,7 @@ import {
   CalendarDays,
   X,
   User,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Popover,
@@ -207,6 +208,7 @@ export default function SIJInput() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [pendingRitase, setPendingRitase] = useState(null);
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
 
@@ -263,12 +265,20 @@ export default function SIJInput() {
     setForm((f) => ({ ...f, driver_id: driver.driver_id }));
     setSearchQuery(driver.name);
     setShowDropdown(false);
+    setPendingRitase(null);
+    axios
+      .get(`${API}/sij/pending-ritase/${driver.driver_id}`, {
+        headers: getAuthHeader(),
+      })
+      .then((res) => setPendingRitase(res.data))
+      .catch(() => setPendingRitase(null));
   };
 
   const clearDriver = () => {
     setSelectedDriver(null);
     setForm((f) => ({ ...f, driver_id: "" }));
     setSearchQuery("");
+    setPendingRitase(null);
   };
 
   const handleDateSelect = (date) => {
@@ -313,6 +323,7 @@ export default function SIJInput() {
     setResult(null);
     setSelectedDriver(null);
     setSearchQuery("");
+    setPendingRitase(null);
   };
 
   const todayFormatted = new Date().toLocaleDateString("id-ID", {
@@ -634,6 +645,16 @@ export default function SIJInput() {
                     </div>
                   </div>
                 </div>
+
+                {/* Pending ritase warning */}
+                {pendingRitase?.has_pending && (
+                  <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/40 text-red-400">
+                    <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm font-semibold leading-snug">
+                      ⚠️ PERINGATAN: Driver ini masih memiliki SIJ menggantung yang belum diinput ritasenya! Harap segera diinput sebelum SIJ baru di-print! Cek HP mitra sekarang untuk melihat ritase hari sebelumnya.
+                    </p>
+                  </div>
+                )}
 
                 <button
                   data-testid="sij-submit-button"

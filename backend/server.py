@@ -852,6 +852,31 @@ async def get_revenue_report(period: str = "monthly",
     return {"rows": rows, "meta": meta}
 
 
+@api_router.get("/sij/pending-ritase/{driver_id}")
+async def check_pending_ritase(driver_id: str,
+                               user: dict = Depends(require_admin)):
+    today = datetime.now(JAKARTA_TZ).strftime("%Y-%m-%d")
+    rows = await pool.fetch(
+        """
+        SELECT s.date
+        FROM sij_transactions s
+        WHERE s.driver_id = $1
+          AND s.status = 'active'
+          AND s.date < $2
+          AND NOT EXISTS (
+              SELECT 1 FROM ritase r
+              WHERE r.driver_id = s.driver_id
+                AND r.date = s.date
+                AND r.waktu_ritase IS NOT NULL
+                AND r.waktu_ritase != ''
+                AND r.waktu_ritase != '0'
+          )
+        """,
+        driver_id, today)
+    count = len(rows)
+    return {"has_pending": count > 0, "count": count}
+
+
 @api_router.patch("/sij/{transaction_id}/void")
 async def void_sij(transaction_id: str, user: dict = Depends(require_admin)):
     tx = await pool.fetchrow(
