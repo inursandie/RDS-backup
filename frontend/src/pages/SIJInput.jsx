@@ -209,6 +209,7 @@ export default function SIJInput() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [pendingRitase, setPendingRitase] = useState(null);
+  const pendingCheckRef = useRef(null);
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
 
@@ -266,15 +267,27 @@ export default function SIJInput() {
     setSearchQuery(driver.name);
     setShowDropdown(false);
     setPendingRitase(null);
+    if (pendingCheckRef.current) {
+      pendingCheckRef.current.abort();
+    }
+    const controller = new AbortController();
+    pendingCheckRef.current = controller;
     axios
       .get(`${API}/sij/pending-ritase/${driver.driver_id}`, {
         headers: getAuthHeader(),
+        signal: controller.signal,
       })
       .then((res) => setPendingRitase(res.data))
-      .catch(() => setPendingRitase(null));
+      .catch((err) => {
+        if (!axios.isCancel(err)) setPendingRitase(null);
+      });
   };
 
   const clearDriver = () => {
+    if (pendingCheckRef.current) {
+      pendingCheckRef.current.abort();
+      pendingCheckRef.current = null;
+    }
     setSelectedDriver(null);
     setForm((f) => ({ ...f, driver_id: "" }));
     setSearchQuery("");

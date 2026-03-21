@@ -856,9 +856,9 @@ async def get_revenue_report(period: str = "monthly",
 async def check_pending_ritase(driver_id: str,
                                user: dict = Depends(require_admin)):
     today = datetime.now(JAKARTA_TZ).strftime("%Y-%m-%d")
-    rows = await pool.fetch(
+    row = await pool.fetchrow(
         """
-        SELECT s.date
+        SELECT COUNT(*) AS cnt
         FROM sij_transactions s
         WHERE s.driver_id = $1
           AND s.status = 'active'
@@ -873,7 +873,7 @@ async def check_pending_ritase(driver_id: str,
           )
         """,
         driver_id, today)
-    count = len(rows)
+    count = row["cnt"]
     return {"has_pending": count > 0, "count": count}
 
 
