@@ -1594,8 +1594,10 @@ async def get_weekly_report(start_date: str = Query(...),
     start = date_type.fromisoformat(start_date)
     end = date_type.fromisoformat(end_date)
     num_days = (end - start).days + 1
-    if num_days < 1 or num_days > 7:
-        num_days = 7
+    if num_days < 1:
+        num_days = 1
+    elif num_days > 31:
+        num_days = 31
     days = []
     for i in range(num_days):
         d = start + timedelta(days=i)
@@ -1645,7 +1647,8 @@ async def export_weekly_csv(start_date: str = Query(...),
                             end_date: str = Query(...),
                             user: dict = Depends(get_current_user)):
     report = await get_weekly_report(start_date, end_date, user)
-    day_labels = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]
+    days = report["days"]
+    day_labels = [f"Tgl {int(d.split('-')[2])}" for d in days]
     output = io.StringIO()
     header = ["No", "Nama Driver", "Nopol"]
     for dl in day_labels:
@@ -1700,7 +1703,9 @@ async def export_weekly_pdf(start_date: str = Query(...),
                             end_date: str = Query(...),
                             user: dict = Depends(get_current_user)):
     report = await get_weekly_report(start_date, end_date, user)
-    day_labels = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]
+    days = report["days"]
+    day_labels = [f"Tgl {int(d.split('-')[2])}" for d in days]
+    num_days = len(days)
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf,
@@ -1756,7 +1761,7 @@ async def export_weekly_pdf(start_date: str = Query(...),
     ]
 
     col_widths = [12 * mm, 35 * mm, 20 * mm
-                  ] + [20 * mm] * 7 + [14 * mm, 14 * mm]
+                  ] + [20 * mm] * num_days + [14 * mm, 14 * mm]
 
     def build_table(cat_drivers):
         header = [
@@ -1804,7 +1809,8 @@ async def export_weekly_pdf(start_date: str = Query(...),
                         ('BACKGROUND', (3 + di, idx), (3 + di, idx),
                          colors.HexColor('#FFF3CD')))
             if drv["total_khd"] < 5:
-                row_colors.append(('BACKGROUND', (10, idx), (10, idx),
+                row_colors.append(('BACKGROUND', (3 + num_days, idx),
+                                   (3 + num_days, idx),
                                    colors.HexColor('#FFD9D9')))
         table = Table(tdata, colWidths=col_widths, repeatRows=1)
         style_cmds = [
