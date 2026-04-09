@@ -1868,9 +1868,14 @@ def _get_monthly_periods(month: str):
 async def _build_monthly_report(month: str):
     from datetime import date as date_type
     try:
-        year, mon = int(month.split('-')[0]), int(month.split('-')[1])
-    except Exception:
-        raise HTTPException(status_code=400, detail="Format bulan tidak valid, gunakan YYYY-MM")
+        parts = month.split('-')
+        if len(parts) != 2:
+            raise ValueError
+        year, mon = int(parts[0]), int(parts[1])
+        if not (1 <= mon <= 12) or year < 2000 or year > 2100:
+            raise ValueError
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Format bulan tidak valid, gunakan YYYY-MM (contoh: 2026-04)")
 
     periods = _get_monthly_periods(month)
     month_start = f"{month}-01"

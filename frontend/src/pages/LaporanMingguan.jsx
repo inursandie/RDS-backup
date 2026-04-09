@@ -333,15 +333,15 @@ export default function LaporanMingguan() {
         transition={{ delay: 0.05 }}
       >
         <div className="glass-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={prevMonth}
               className="p-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
-              <Calendar className="w-4 h-4 text-amber-400" />
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+              <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
               <span className="text-sm font-medium text-white">
                 {formatMonthLabel(month)}
               </span>
@@ -352,6 +352,12 @@ export default function LaporanMingguan() {
             >
               <ChevronRight className="w-4 h-4" />
             </button>
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => e.target.value && setMonth(e.target.value)}
+              className="px-2 py-1.5 rounded-lg bg-zinc-800/50 border border-zinc-700/50 text-sm text-white focus:outline-none focus:border-amber-500/50 [color-scheme:dark]"
+            />
             <button
               onClick={thisMonth}
               className="px-3 py-2 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/30 transition"
