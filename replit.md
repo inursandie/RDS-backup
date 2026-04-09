@@ -51,6 +51,12 @@ RAJA Digital System v1.0 - A driver management and SIJ (Surat Izin Jalan) transa
   - UI: Action buttons (add/edit/delete/suspend) hidden via `isViewer` checks in SIJList, Drivers, LaporanMingguan, SuperAdminDashboard
 
 ## Recent Changes
+- **2026-04-09**: Revamped Laporan Mingguan → Laporan Bulanan (Monthly Period Report)
+  - Backend: New `GET /api/monthly-report?month=YYYY-MM` endpoint aggregating KHD & RTS into 4 fixed date-range periods per month (Periode 1: 1-7, Periode 2: 8-14, Periode 3: 15-21, Periode 4: 22-end)
+  - Backend: New `GET /api/monthly-report/export/csv` and `/export/pdf` endpoints with 4-period columns
+  - Frontend `LaporanMingguan.jsx`: Month/Year picker (prev/next/this month), 4-period table with KHD|RTS per cell, fraud detection per period (red highlight), low-KHD alert (< 20 for the month), updated CSV/PDF exports
+  - Per-cell absence/ritase edit modals removed (not applicable to aggregated period view)
+  - Low KHD threshold changed from 5 (weekly) to 20 (monthly)
 - **2026-02-25**: Added configurable API base URL for external frontend deployments (e.g. Vercel)
   - `AuthContext.jsx`: API URL reads from `REACT_APP_API_URL` env var, falls back to `/api`
   - For Vercel: Set `REACT_APP_API_URL=https://koperasiraja.replit.app` in Vercel env vars

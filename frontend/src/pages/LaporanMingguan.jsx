@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   ChevronLeft,
@@ -11,47 +11,25 @@ import {
   AlertTriangle,
   Search,
   Calendar,
-  Pencil,
-  X,
 } from "lucide-react";
 
-const DAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+const PERIOD_LABELS = ["Periode 1", "Periode 2", "Periode 3", "Periode 4"];
+const PERIOD_RANGES = ["1 - 7", "8 - 14", "15 - 21", "22 - Akhir"];
+const LOW_KHD_THRESHOLD = 20;
 
-const ABSENCE_REASONS = [
-  "SAKIT",
-  "IZIN",
-  "GANTI UNIT",
-  "PINDAH PREMIUM",
-  "CUTI",
-  "GANGGUAN G.A.",
-  "TAKEDOWN",
-  "RESIGN",
-  "TANPA KETERANGAN",
-  "AKUN BLOKIR",
-  "UNIT MAINTENANCE",
-];
-
-function getMonday(d) {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  return date;
-}
-
-function formatDateISO(d) {
+function formatMonthISO(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
+  return `${y}-${m}`;
 }
 
-function formatDateShort(str) {
-  const d = new Date(str + "T00:00:00");
-  return `${d.getDate()}/${d.getMonth() + 1}`;
+function formatMonthLabel(monthStr) {
+  const [year, mon] = monthStr.split("-");
+  const d = new Date(Number(year), Number(mon) - 1, 1);
+  return d.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
 }
 
-function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseClick, isViewer }) {
+function DriverTable({ drivers, title, search }) {
   const filtered = useMemo(() => {
     if (!search.trim()) return drivers;
     const q = search.toLowerCase();
@@ -84,7 +62,7 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
               </th>
               <th
                 className="px-3 py-3 text-left text-zinc-400 font-semibold sticky left-[40px] bg-zinc-800/80 z-10"
-                style={{ minWidth: 140 }}
+                style={{ minWidth: 160 }}
               >
                 Nama Driver
               </th>
@@ -94,16 +72,16 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
               >
                 Nopol
               </th>
-              {days.map((day, i) => (
+              {PERIOD_LABELS.map((label, i) => (
                 <th
-                  key={day}
+                  key={label}
                   className="text-center text-zinc-400 font-semibold"
-                  style={{ minWidth: 90 }}
+                  style={{ minWidth: 110 }}
                 >
                   <div className="px-2 py-1">
-                    <div className="text-zinc-300">{DAY_LABELS[i]}</div>
+                    <div className="text-zinc-300 font-bold">{label}</div>
                     <div className="text-zinc-500 text-[10px] font-normal">
-                      {formatDateShort(day)}
+                      Tgl {PERIOD_RANGES[i]}
                     </div>
                     <div className="flex justify-center gap-1 mt-0.5">
                       <span className="text-[9px] text-sky-400">KHD</span>
@@ -115,7 +93,7 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
               ))}
               <th
                 className="px-2 py-3 text-center text-sky-400 font-bold"
-                style={{ minWidth: 55 }}
+                style={{ minWidth: 60 }}
               >
                 Total
                 <br />
@@ -123,7 +101,7 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
               </th>
               <th
                 className="px-2 py-3 text-center text-emerald-400 font-bold"
-                style={{ minWidth: 55 }}
+                style={{ minWidth: 60 }}
               >
                 Total
                 <br />
@@ -135,7 +113,7 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
             {filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={3 + days.length + 2}
+                  colSpan={3 + 4 + 2}
                   className="text-center py-10 text-zinc-500"
                 >
                   {search ? "Driver tidak ditemukan" : "Tidak ada data driver"}
@@ -156,103 +134,51 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
                   <td className="px-3 py-2.5 text-zinc-400 font-mono">
                     {drv.plate}
                   </td>
-                  {drv.daily.map((d) => {
-                    const isFraud = d.khd === 0 && d.rts > 0 && !d.reason;
-                    const hasReason = d.khd === 0 && d.reason;
-                    const isAbsent = d.khd === 0;
+                  {drv.periods.map((p) => {
+                    const isFraud = p.fraud;
                     return (
                       <td
-                        key={d.date}
-                        className={`px-1 py-2.5 text-center ${isFraud ? "bg-red-900/50" : hasReason ? "bg-amber-900/20" : ""}`}
+                        key={p.label}
+                        className={`px-1 py-2.5 text-center ${isFraud ? "bg-red-900/50" : ""}`}
                       >
-                        {hasReason ? (
-                          <div
-                            className={isViewer ? "" : "cursor-pointer group"}
-                            onClick={isViewer ? undefined : () =>
-                              onAbsenceClick(
-                                drv.driver_id,
-                                drv.name,
-                                d.date,
-                                d.reason,
-                              )
+                        <div className="flex items-center justify-center gap-1">
+                          <span
+                            className={
+                              p.khd === 0
+                                ? isFraud
+                                  ? "text-red-400 font-bold"
+                                  : "text-zinc-600"
+                                : "text-sky-400"
                             }
                           >
-                            <div className="text-[9px] text-amber-400 font-medium leading-tight">
-                              {d.reason}
-                            </div>
-                            <div className="text-[8px] text-zinc-500 mt-0.5">
-                              RTS: {d.rts}
-                            </div>
-                            {!isViewer && <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />}
-                          </div>
-                        ) : isAbsent ? (
-                          <div
-                            className={isViewer ? "" : "cursor-pointer group"}
-                            onClick={isViewer ? undefined : () =>
-                              onAbsenceClick(
-                                drv.driver_id,
-                                drv.name,
-                                d.date,
-                                "",
-                              )
+                            {p.khd}
+                          </span>
+                          <span className="text-zinc-700">|</span>
+                          <span
+                            className={
+                              isFraud
+                                ? "text-red-400 font-bold"
+                                : p.rts > 0
+                                  ? "text-emerald-400"
+                                  : "text-zinc-600"
                             }
                           >
-                            <div
-                              className={`flex items-center justify-center gap-1 ${isFraud ? "font-bold" : ""}`}
-                            >
-                              <span
-                                className={
-                                  isFraud ? "text-red-400" : "text-zinc-600"
-                                }
-                              >
-                                {d.khd}
-                              </span>
-                              <span className="text-zinc-700">|</span>
-                              <span
-                                className={
-                                  isFraud
-                                    ? "text-red-400"
-                                    : d.rts > 0
-                                      ? "text-emerald-400"
-                                      : "text-zinc-600"
-                                }
-                              >
-                                {d.rts}
-                              </span>
-                            </div>
-                            {isFraud && (
-                              <div className="text-[8px] text-red-400 mt-0.5 flex items-center justify-center gap-0.5">
-                                <AlertTriangle className="w-2.5 h-2.5" /> BOCOR
-                              </div>
-                            )}
-                            {!isViewer && <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />}
-                          </div>
-                        ) : (
-                          <div
-                            className={isViewer ? "relative" : "cursor-pointer group relative"}
-                            onClick={isViewer ? undefined : () => onRitaseClick(drv.driver_id, drv.name, d.date, d.rts)}
-                          >
-                            <div className="flex items-center justify-center gap-1">
-                              <span className="text-sky-400">{d.khd}</span>
-                              <span className="text-zinc-700">|</span>
-                              <span className={d.rts > 0 ? "text-emerald-400" : "text-zinc-600"}>
-                                {d.rts}
-                              </span>
-                              {d.is_manual && (
-                                <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-amber-400" title="Manual override" />
-                              )}
-                            </div>
-                            {!isViewer && <Pencil className="w-2.5 h-2.5 text-zinc-600 mx-auto mt-0.5 opacity-0 group-hover:opacity-100 transition" />}
+                            {p.rts}
+                          </span>
+                        </div>
+                        {isFraud && (
+                          <div className="text-[8px] text-red-400 mt-0.5 flex items-center justify-center gap-0.5">
+                            <AlertTriangle className="w-2.5 h-2.5" /> BOCOR
                           </div>
                         )}
                       </td>
                     );
                   })}
                   <td
-                    className={`px-2 py-2.5 text-center font-bold ${drv.total_khd < 5 ? "text-red-400 bg-red-900/40" : "text-sky-400"}`}
+                    className={`px-2 py-2.5 text-center font-bold ${drv.total_khd < LOW_KHD_THRESHOLD ? "text-red-400 bg-red-900/40" : "text-sky-400"}`}
                   >
                     {drv.total_khd}
-                    {drv.total_khd < 5 && (
+                    {drv.total_khd < LOW_KHD_THRESHOLD && (
                       <div className="text-[8px] text-red-400 mt-0.5">
                         RENDAH
                       </div>
@@ -272,74 +198,51 @@ function DriverTable({ drivers, days, title, search, onAbsenceClick, onRitaseCli
 }
 
 export default function LaporanMingguan() {
-  const { getAuthHeader, API, user } = useAuth();
-  const isViewer = user?.role === "viewer";
-  const [weekStart, setWeekStart] = useState(() => {
-    const mon = getMonday(new Date());
-    return formatDateISO(mon);
-  });
+  const { getAuthHeader, API } = useAuth();
+  const [month, setMonth] = useState(() => formatMonthISO(new Date()));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [exporting, setExporting] = useState(false);
-  const [absenceModal, setAbsenceModal] = useState(null);
-  const [savingAbsence, setSavingAbsence] = useState(false);
-  const [ritaseModal, setRitaseModal] = useState(null);
-  const [ritaseInput, setRitaseInput] = useState(0);
-  const [savingRitase, setSavingRitase] = useState(false);
-
-  const weekEnd = useMemo(() => {
-    const d = new Date(weekStart + "T00:00:00");
-    d.setDate(d.getDate() + 6);
-    return formatDateISO(d);
-  }, [weekStart]);
-
-  const weekLabel = useMemo(() => {
-    const s = new Date(weekStart + "T00:00:00");
-    const e = new Date(weekEnd + "T00:00:00");
-    const opts = { day: "numeric", month: "short", year: "numeric" };
-    return `${s.toLocaleDateString("id-ID", opts)} - ${e.toLocaleDateString("id-ID", opts)}`;
-  }, [weekStart, weekEnd]);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(
-        `${API}/weekly-report?start_date=${weekStart}&end_date=${weekEnd}`,
-        { headers: getAuthHeader() },
-      );
+      const res = await axios.get(`${API}/monthly-report?month=${month}`, {
+        headers: getAuthHeader(),
+      });
       setData(res.data);
-    } catch (err) {
-      toast.error("Gagal memuat laporan mingguan");
+    } catch {
+      toast.error("Gagal memuat laporan bulanan");
     } finally {
       setLoading(false);
     }
-  }, [API, getAuthHeader, weekStart, weekEnd]);
+  }, [API, getAuthHeader, month]);
 
   useEffect(() => {
     fetchReport();
   }, [fetchReport]);
 
-  const prevWeek = () => {
-    const d = new Date(weekStart + "T00:00:00");
-    d.setDate(d.getDate() - 7);
-    setWeekStart(formatDateISO(d));
+  const prevMonth = () => {
+    const [y, m] = month.split("-").map(Number);
+    const d = new Date(y, m - 2, 1);
+    setMonth(formatMonthISO(d));
   };
 
-  const nextWeek = () => {
-    const d = new Date(weekStart + "T00:00:00");
-    d.setDate(d.getDate() + 7);
-    setWeekStart(formatDateISO(d));
+  const nextMonth = () => {
+    const [y, m] = month.split("-").map(Number);
+    const d = new Date(y, m, 1);
+    setMonth(formatMonthISO(d));
   };
 
-  const thisWeek = () => {
-    setWeekStart(formatDateISO(getMonday(new Date())));
+  const thisMonth = () => {
+    setMonth(formatMonthISO(new Date()));
   };
 
   const handleExport = async (type) => {
     setExporting(true);
     try {
-      const url = `${API}/weekly-report/export/${type}?start_date=${weekStart}&end_date=${weekEnd}`;
+      const url = `${API}/monthly-report/export/${type}?month=${month}`;
       const res = await axios.get(url, {
         headers: getAuthHeader(),
         responseType: "blob",
@@ -347,7 +250,7 @@ export default function LaporanMingguan() {
       const blob = new Blob([res.data]);
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = `laporan_mingguan_${weekStart}_${weekEnd}.${type}`;
+      link.download = `laporan_bulanan_${month}.${type}`;
       link.click();
       URL.revokeObjectURL(link.href);
       toast.success(`Export ${type.toUpperCase()} berhasil`);
@@ -355,62 +258,6 @@ export default function LaporanMingguan() {
       toast.error(`Gagal export ${type.toUpperCase()}`);
     } finally {
       setExporting(false);
-    }
-  };
-
-  const handleAbsenceClick = (driverId, driverName, date, currentReason) => {
-    setAbsenceModal({
-      driverId,
-      driverName,
-      date,
-      reason: currentReason || "",
-    });
-  };
-
-  const handleSaveAbsence = async () => {
-    if (!absenceModal) return;
-    setSavingAbsence(true);
-    try {
-      await axios.post(
-        `${API}/absences`,
-        {
-          driver_id: absenceModal.driverId,
-          date: absenceModal.date,
-          reason: absenceModal.reason,
-        },
-        { headers: getAuthHeader() },
-      );
-      toast.success("Keterangan absen disimpan");
-      setAbsenceModal(null);
-      fetchReport();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Gagal menyimpan keterangan");
-    } finally {
-      setSavingAbsence(false);
-    }
-  };
-
-  const handleRitaseClick = (driverId, driverName, date, currentRts) => {
-    setRitaseInput(currentRts);
-    setRitaseModal({ driverId, driverName, date });
-  };
-
-  const handleSaveRitase = async () => {
-    if (!ritaseModal) return;
-    setSavingRitase(true);
-    try {
-      await axios.post(
-        `${API}/manual-ritase`,
-        { driver_id: ritaseModal.driverId, date: ritaseModal.date, manual_rts: ritaseInput },
-        { headers: getAuthHeader() },
-      );
-      toast.success("Ritase manual disimpan");
-      setRitaseModal(null);
-      fetchReport();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Gagal menyimpan ritase");
-    } finally {
-      setSavingRitase(false);
     }
   };
 
@@ -430,19 +277,19 @@ export default function LaporanMingguan() {
     if (!data?.drivers) return 0;
     let count = 0;
     data.drivers.forEach((drv) => {
-      drv.daily.forEach((d) => {
-        if (d.khd === 0 && d.rts > 0 && !d.reason) count++;
+      drv.periods.forEach((p) => {
+        if (p.fraud) count++;
       });
     });
     return count;
   }, [data]);
 
   const lowStandar = useMemo(
-    () => standarDrivers.filter((d) => d.total_khd < 5),
+    () => standarDrivers.filter((d) => d.total_khd < LOW_KHD_THRESHOLD),
     [standarDrivers],
   );
   const lowPremium = useMemo(
-    () => premiumDrivers.filter((d) => d.total_khd < 5),
+    () => premiumDrivers.filter((d) => d.total_khd < LOW_KHD_THRESHOLD),
     [premiumDrivers],
   );
 
@@ -455,10 +302,10 @@ export default function LaporanMingguan() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-white">
-              Laporan Mingguan
+              Laporan Bulanan
             </h1>
             <p className="text-zinc-500 text-sm mt-0.5">
-              Audit kehadiran & ritase driver per minggu
+              Audit kehadiran &amp; ritase driver per periode bulanan
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -488,7 +335,7 @@ export default function LaporanMingguan() {
         <div className="glass-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <button
-              onClick={prevWeek}
+              onClick={prevMonth}
               className="p-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -496,20 +343,20 @@ export default function LaporanMingguan() {
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
               <Calendar className="w-4 h-4 text-amber-400" />
               <span className="text-sm font-medium text-white">
-                {weekLabel}
+                {formatMonthLabel(month)}
               </span>
             </div>
             <button
-              onClick={nextWeek}
+              onClick={nextMonth}
               className="p-2 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
             <button
-              onClick={thisWeek}
+              onClick={thisMonth}
               className="px-3 py-2 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/30 transition"
             >
-              Minggu Ini
+              Bulan Ini
             </button>
           </div>
           <div className="relative">
@@ -534,8 +381,8 @@ export default function LaporanMingguan() {
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-900/30 border border-red-700/40">
             <AlertTriangle className="w-4 h-4 text-red-400" />
             <span className="text-sm text-red-300">
-              <span className="font-bold text-red-400">{fraudCount}</span> Fraud
-              (KHD=0, RTS&gt;0, tanpa keterangan)
+              <span className="font-bold text-red-400">{fraudCount}</span> Periode
+              dengan Fraud (KHD=0, RTS&gt;0)
             </span>
           </div>
         </motion.div>
@@ -560,12 +407,8 @@ export default function LaporanMingguan() {
           >
             <DriverTable
               drivers={standarDrivers}
-              days={data.days}
               title="Driver Standar"
               search={search}
-              onAbsenceClick={handleAbsenceClick}
-              onRitaseClick={handleRitaseClick}
-              isViewer={isViewer}
             />
           </motion.div>
 
@@ -576,12 +419,8 @@ export default function LaporanMingguan() {
           >
             <DriverTable
               drivers={premiumDrivers}
-              days={data.days}
               title="Driver Premium"
               search={search}
-              onAbsenceClick={handleAbsenceClick}
-              onRitaseClick={handleRitaseClick}
-              isViewer={isViewer}
             />
           </motion.div>
 
@@ -599,7 +438,7 @@ export default function LaporanMingguan() {
                   className={`px-3 py-2 rounded-lg ${lowStandar.length > 0 ? "bg-red-900/20 border border-red-800/30" : "bg-zinc-800/30 border border-zinc-700/30"}`}
                 >
                   <span className="text-zinc-400">
-                    Driver Standar (KHD &lt; 5):{" "}
+                    Driver Standar (KHD &lt; {LOW_KHD_THRESHOLD}):{" "}
                   </span>
                   <span
                     className={`font-bold ${lowStandar.length > 0 ? "text-red-400" : "text-emerald-400"}`}
@@ -618,7 +457,7 @@ export default function LaporanMingguan() {
                   className={`px-3 py-2 rounded-lg ${lowPremium.length > 0 ? "bg-red-900/20 border border-red-800/30" : "bg-zinc-800/30 border border-zinc-700/30"}`}
                 >
                   <span className="text-zinc-400">
-                    Driver Premium (KHD &lt; 5):{" "}
+                    Driver Premium (KHD &lt; {LOW_KHD_THRESHOLD}):{" "}
                   </span>
                   <span
                     className={`font-bold ${lowPremium.length > 0 ? "text-red-400" : "text-emerald-400"}`}
@@ -647,174 +486,14 @@ export default function LaporanMingguan() {
         <div className="flex flex-wrap items-center gap-4 text-[10px] text-zinc-500 px-1">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-red-900/50 border border-red-700/50" />
-            <span>KHD=0, RTS&gt;0 = Potensi Kebocoran</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-amber-900/30 border border-amber-700/40" />
-            <span>Keterangan Absen tercatat</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Pencil className="w-3 h-3 text-zinc-500" />
-            <span>Klik cell KHD=0 untuk isi keterangan absen</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Pencil className="w-3 h-3 text-zinc-500" />
-            <span>Klik cell KHD&gt;0 untuk override ritase manual</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-            <span>Titik amber = ritase telah dioverride manual</span>
+            <span>KHD=0, RTS&gt;0 dalam satu periode = Potensi Kebocoran</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-red-400 font-bold">RENDAH</span>
-            <span>Total KHD &lt; 5</span>
+            <span>Total KHD &lt; {LOW_KHD_THRESHOLD} dalam sebulan</span>
           </div>
         </div>
       </motion.div>
-
-      <AnimatePresence>
-        {absenceModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => setAbsenceModal(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-zinc-900 border border-zinc-700/50 rounded-xl shadow-2xl"
-            >
-              <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-                <div>
-                  <h3 className="text-sm font-bold text-white">
-                    Keterangan Absen
-                  </h3>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    {absenceModal.driverName} — {absenceModal.date}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setAbsenceModal(null)}
-                  className="text-zinc-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="p-5 space-y-3">
-                <label className="text-xs text-zinc-400 font-medium">
-                  Pilih Alasan Absen:
-                </label>
-                <select
-                  value={absenceModal.reason}
-                  onChange={(e) =>
-                    setAbsenceModal({ ...absenceModal, reason: e.target.value })
-                  }
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white focus:outline-none focus:border-amber-500/50"
-                >
-                  <option value="">-- Hapus Keterangan --</option>
-                  {ABSENCE_REASONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-zinc-800">
-                <button
-                  onClick={() => setAbsenceModal(null)}
-                  className="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleSaveAbsence}
-                  disabled={savingAbsence}
-                  className="px-4 py-2 rounded-lg bg-amber-500 text-black text-sm font-medium hover:bg-amber-400 transition disabled:opacity-50"
-                >
-                  {savingAbsence ? "Menyimpan..." : "Simpan"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {ritaseModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => setRitaseModal(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm bg-zinc-900 border border-zinc-700/50 rounded-xl shadow-2xl"
-            >
-              <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-                <div>
-                  <h3 className="text-sm font-bold text-white">Manual Ritase Update</h3>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    {ritaseModal.driverName} — {ritaseModal.date}
-                  </p>
-                </div>
-                <button onClick={() => setRitaseModal(null)} className="text-zinc-400 hover:text-white">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="p-5 space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs text-zinc-400 font-medium">Driver</label>
-                  <div className="px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300">
-                    {ritaseModal.driverName}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-zinc-400 font-medium">Tanggal</label>
-                  <div className="px-3 py-2 rounded-lg bg-zinc-800/60 border border-zinc-700 text-sm text-zinc-300 font-mono">
-                    {ritaseModal.date}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-zinc-400 font-medium">Total Ritase (override)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={ritaseInput}
-                    onChange={(e) => setRitaseInput(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white focus:outline-none focus:border-amber-500/50 text-center font-mono text-lg"
-                    autoFocus
-                  />
-                  <p className="text-[10px] text-zinc-500">Nilai ini akan menggantikan hitungan otomatis dari sistem.</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-zinc-800">
-                <button
-                  onClick={() => setRitaseModal(null)}
-                  className="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleSaveRitase}
-                  disabled={savingRitase}
-                  className="px-4 py-2 rounded-lg bg-amber-500 text-black text-sm font-bold hover:bg-amber-400 transition disabled:opacity-50"
-                >
-                  {savingRitase ? "Menyimpan..." : "Simpan"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

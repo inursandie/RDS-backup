@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
-import os, logging, random, io, csv, jwt, bcrypt, asyncpg, ssl
+import os, logging, random, io, csv, jwt, bcrypt, asyncpg, ssl, calendar
 from pathlib import Path
 from pydantic import BaseModel
 from typing import Optional, List
@@ -1850,6 +1850,262 @@ async def export_weekly_pdf(start_date: str = Query(...),
         buf,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={fname}"})
+
+
+# =================== MONTHLY PERIOD REPORT ===================
+
+def _get_monthly_periods(month: str):
+    year, mon = int(month.split('-')[0]), int(month.split('-')[1])
+    last_day = calendar.monthrange(year, mon)[1]
+    return [
+        {"label": "Periode 1", "start": f"{month}-01", "end": f"{month}-07"},
+        {"label": "Periode 2", "start": f"{month}-08", "end": f"{month}-14"},
+        {"label": "Periode 3", "start": f"{month}-15", "end": f"{month}-21"},
+        {"label": "Periode 4", "start": f"{month}-22", "end": f"{month}-{last_day:02d}"},
+    ]
+
+
+async def _build_monthly_report(month: str):
+    from datetime import date as date_type
+    try:
+        year, mon = int(month.split('-')[0]), int(month.split('-')[1])
+    except Exception:
+        raise HTTPException(status_code=400, detail="Format bulan tidak valid, gunakan YYYY-MM")
+
+    periods = _get_monthly_periods(month)
+    month_start = f"{month}-01"
+    last_day = calendar.monthrange(year, mon)[1]
+    month_end = f"{month}-{last_day:02d}"
+
+    drivers = await pool.fetch(
+        "SELECT driver_id, name, plate, category FROM drivers ORDER BY name")
+    sij_rows = await pool.fetch(
+        "SELECT DISTINCT driver_id, date FROM sij_transactions WHERE date >= $1 AND date <= $2 AND status = 'active'",
+        month_start, month_end)
+    ritase_rows = await pool.fetch(
+        "SELECT driver_id, date, COUNT(*) as cnt FROM ritase WHERE date >= $1 AND date <= $2 GROUP BY driver_id, date",
+        month_start, month_end)
+    manual_rows = await pool.fetch(
+        "SELECT driver_id, date, manual_rts FROM manual_ritase_override WHERE date >= $1 AND date <= $2",
+        month_start, month_end)
+
+    sij_set = set()
+    for r in sij_rows:
+        sij_set.add((r['driver_id'], r['date']))
+
+    ritase_map = {}
+    for r in ritase_rows:
+        ritase_map[(r['driver_id'], r['date'])] = r['cnt']
+
+    manual_map = {}
+    for r in manual_rows:
+        manual_map[(r['driver_id'], r['date'])] = r['manual_rts']
+
+    result = []
+    for drv in drivers:
+        did = drv['driver_id']
+        drv_periods = []
+        total_khd = 0
+        total_rts = 0
+        for period in periods:
+            p_start = date_type.fromisoformat(period['start'])
+            p_end = date_type.fromisoformat(period['end'])
+            khd = 0
+            rts = 0
+            cur = p_start
+            while cur <= p_end:
+                day_str = cur.isoformat()
+                if (did, day_str) in sij_set:
+                    khd += 1
+                auto_rts = ritase_map.get((did, day_str), 0)
+                day_rts = manual_map[(did, day_str)] if (did, day_str) in manual_map else auto_rts
+                rts += day_rts
+                cur += timedelta(days=1)
+            fraud = (khd == 0 and rts > 0)
+            drv_periods.append({"label": period['label'], "khd": khd, "rts": rts, "fraud": fraud})
+            total_khd += khd
+            total_rts += rts
+        result.append({
+            "driver_id": did,
+            "name": drv['name'],
+            "plate": drv['plate'],
+            "category": drv['category'],
+            "periods": drv_periods,
+            "total_khd": total_khd,
+            "total_rts": total_rts,
+        })
+
+    return {"month": month, "periods": periods, "drivers": result}
+
+
+@api_router.get("/monthly-report/export/csv")
+async def export_monthly_csv(month: str = Query(...),
+                             user: dict = Depends(get_current_user)):
+    report = await _build_monthly_report(month)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    header = ["No", "Nama Driver", "Nopol",
+              "P1 KHD", "P1 RTS",
+              "P2 KHD", "P2 RTS",
+              "P3 KHD", "P3 RTS",
+              "P4 KHD", "P4 RTS",
+              "Total KHD", "Total RTS"]
+
+    standar = [d for d in report["drivers"] if (d.get("category") or "standar") == "standar"]
+    premium = [d for d in report["drivers"] if (d.get("category") or "standar") == "premium"]
+
+    for cat_label, cat_drivers in [("DRIVER STANDAR", standar), ("DRIVER PREMIUM", premium)]:
+        writer.writerow([])
+        writer.writerow([cat_label])
+        writer.writerow(header)
+        for idx, drv in enumerate(cat_drivers, 1):
+            row = [idx, drv["name"], drv["plate"]]
+            for p in drv["periods"]:
+                row.extend([p["khd"], p["rts"]])
+            row.extend([drv["total_khd"], drv["total_rts"]])
+            writer.writerow(row)
+
+    writer.writerow([])
+    writer.writerow(["KESIMPULAN"])
+    low_standar = [d["name"] for d in standar if d["total_khd"] < 20]
+    low_premium = [d["name"] for d in premium if d["total_khd"] < 20]
+    writer.writerow([f"Driver Standar (KHD < 20): {len(low_standar)} driver -> {', '.join(low_standar) if low_standar else '-'}"])
+    writer.writerow([f"Driver Premium (KHD < 20): {len(low_premium)} driver -> {', '.join(low_premium) if low_premium else '-'}"])
+
+    output.seek(0)
+    fname = f"laporan_bulanan_{month}.csv"
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={fname}"})
+
+
+@api_router.get("/monthly-report/export/pdf")
+async def export_monthly_pdf(month: str = Query(...),
+                             user: dict = Depends(get_current_user)):
+    report = await _build_monthly_report(month)
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf,
+                            pagesize=landscape(A4),
+                            leftMargin=10 * mm,
+                            rightMargin=10 * mm,
+                            topMargin=15 * mm,
+                            bottomMargin=10 * mm)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('MTitle', parent=styles['Title'], fontSize=14,
+                                 textColor=colors.HexColor('#1a1a1a'))
+    sub_style = ParagraphStyle('MSub', parent=styles['Normal'], fontSize=8,
+                               textColor=colors.HexColor('#555555'))
+    cell_style = ParagraphStyle('MCell', parent=styles['Normal'], fontSize=6,
+                                leading=7, alignment=1)
+    header_style = ParagraphStyle('MHead', parent=styles['Normal'], fontSize=6,
+                                  leading=7, alignment=1, textColor=colors.white)
+    cat_title_style = ParagraphStyle('MCatTitle', parent=styles['Heading2'],
+                                     fontSize=11, textColor=colors.HexColor('#1a1a1a'),
+                                     spaceAfter=4 * mm)
+    summary_style = ParagraphStyle('MSummary', parent=styles['Normal'], fontSize=9,
+                                   leading=13, textColor=colors.HexColor('#1a1a1a'))
+
+    period_defs = report["periods"]
+    period_labels = [p["label"] for p in period_defs]
+    period_ranges = [f"{p['start'].split('-')[2]}-{p['end'].split('-')[2]}" for p in period_defs]
+
+    col_widths = [10 * mm, 40 * mm, 22 * mm] + [28 * mm] * 4 + [16 * mm, 16 * mm]
+
+    def build_table(cat_drivers):
+        header_row = [
+            Paragraph("No", header_style),
+            Paragraph("Nama Driver", header_style),
+            Paragraph("Nopol", header_style),
+        ]
+        for i, lbl in enumerate(period_labels):
+            header_row.append(Paragraph(f"{lbl}<br/><font size='5'>{period_ranges[i]}</font><br/>KHD|RTS", header_style))
+        header_row.extend([
+            Paragraph("Tot<br/>KHD", header_style),
+            Paragraph("Tot<br/>RTS", header_style),
+        ])
+
+        tdata = [header_row]
+        row_colors = []
+        name_style = ParagraphStyle('MName', parent=cell_style, alignment=0)
+
+        for idx, drv in enumerate(cat_drivers, 1):
+            row = [
+                Paragraph(str(idx), cell_style),
+                Paragraph(drv["name"], name_style),
+                Paragraph(drv["plate"], cell_style),
+            ]
+            for pi, p in enumerate(drv["periods"]):
+                if p["fraud"]:
+                    cell_text = f"<font color='red'><b>{p['khd']}|{p['rts']}</b></font>"
+                    row_colors.append(('BACKGROUND', (3 + pi, idx), (3 + pi, idx), colors.HexColor('#FFD9D9')))
+                else:
+                    cell_text = f"{p['khd']}|{p['rts']}"
+                row.append(Paragraph(cell_text, cell_style))
+            khd_text = str(drv["total_khd"])
+            if drv["total_khd"] < 20:
+                khd_text = f"<font color='red'><b>{drv['total_khd']}</b></font>"
+                row_colors.append(('BACKGROUND', (7, idx), (7, idx), colors.HexColor('#FFD9D9')))
+            row.append(Paragraph(khd_text, cell_style))
+            row.append(Paragraph(str(drv["total_rts"]), cell_style))
+            tdata.append(row)
+
+        table = Table(tdata, colWidths=col_widths, repeatRows=1)
+        style_cmds = [
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a1a1a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTSIZE', (0, 0), (-1, -1), 6),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#cccccc')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]
+        style_cmds.extend(row_colors)
+        table.setStyle(TableStyle(style_cmds))
+        return table
+
+    standar_drivers = [d for d in report["drivers"] if (d.get("category") or "standar") == "standar"]
+    premium_drivers = [d for d in report["drivers"] if (d.get("category") or "standar") == "premium"]
+
+    elements = [
+        Paragraph("LAPORAN BULANAN - RAJA Digital System", title_style),
+        Paragraph(f"Bulan: {month}", sub_style),
+        Spacer(1, 6 * mm),
+    ]
+    elements.append(Paragraph("Driver Standar", cat_title_style))
+    elements.append(build_table(standar_drivers))
+    elements.append(Spacer(1, 8 * mm))
+    elements.append(Paragraph("Driver Premium", cat_title_style))
+    elements.append(build_table(premium_drivers))
+    elements.append(Spacer(1, 8 * mm))
+
+    low_standar = [d["name"] for d in standar_drivers if d["total_khd"] < 20]
+    low_premium = [d["name"] for d in premium_drivers if d["total_khd"] < 20]
+    elements.append(Paragraph("<b>KESIMPULAN</b>", cat_title_style))
+    elements.append(Paragraph(
+        f"Driver Standar (KHD &lt; 20): <b>{len(low_standar)}</b> driver &rarr; {', '.join(low_standar) if low_standar else '-'}",
+        summary_style))
+    elements.append(Spacer(1, 2 * mm))
+    elements.append(Paragraph(
+        f"Driver Premium (KHD &lt; 20): <b>{len(low_premium)}</b> driver &rarr; {', '.join(low_premium) if low_premium else '-'}",
+        summary_style))
+
+    doc.build(elements)
+    buf.seek(0)
+    fname = f"laporan_bulanan_{month}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={fname}"})
+
+
+@api_router.get("/monthly-report")
+async def get_monthly_report(month: str = Query(...),
+                             user: dict = Depends(get_current_user)):
+    return await _build_monthly_report(month)
 
 
 # =================== SEED DATA ===================
