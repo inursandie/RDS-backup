@@ -1760,8 +1760,12 @@ async def export_weekly_pdf(start_date: str = Query(...),
         if (d.get("category") or "standar") == "premium"
     ]
 
+    page_width = landscape(A4)[0]
+    fixed_cols_width = (10 + 10 + 12 + 35 + 20 + 14 + 14) * mm
+    day_col_width = max(14 * mm,
+                        (page_width - fixed_cols_width) / num_days)
     col_widths = [12 * mm, 35 * mm, 20 * mm
-                  ] + [20 * mm] * num_days + [14 * mm, 14 * mm]
+                  ] + [day_col_width] * num_days + [14 * mm, 14 * mm]
 
     def build_table(cat_drivers):
         header = [
