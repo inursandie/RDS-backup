@@ -191,7 +191,7 @@ export default function SuperAdminDashboard() {
 
   const fetchData = useCallback(async (date) => {
     try {
-      const res = await axios.get(API + '/dashboard/superadmin?date=' + date, { headers: getAuthHeader() });
+      const res = await axios.get(API + '/dashboard/superadmin', { params: { date }, headers: getAuthHeader() });
       setData(res.data);
     } catch (err) {
       toast.error('Gagal memuat data dashboard');
