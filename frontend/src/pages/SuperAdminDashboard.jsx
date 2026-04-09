@@ -1,9 +1,24 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { motion } from 'framer-motion';
-import { TrendingUp, DollarSign, Users, AlertTriangle, RefreshCw, Ban, Truck, Trophy } from 'lucide-react';
+import { TrendingUp, DollarSign, Users, AlertTriangle, RefreshCw, Ban, Truck, Trophy, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
+
+function getTodayJakarta() {
+  return new Intl.DateTimeFormat('sv', { timeZone: 'Asia/Jakarta' }).format(new Date());
+}
+
+function isToday(dateStr) {
+  return dateStr === getTodayJakarta();
+}
+
+function formatDateLabel(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  const dt = new Date(Number(y), Number(m) - 1, Number(d));
+  return dt.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 function useCountUp(target) {
   const [count, setCount] = useState(0);
@@ -33,7 +48,7 @@ const COLORS = {
   purple: { text: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20', glow: '' },
 };
 
-function KPICard({ title, value, icon, color, prefix, suffix, subtitle, delay }) {
+function KPICard({ title, value, icon, color, prefix, suffix, subtitle, breakdown, delay }) {
   const count = useCountUp(value || 0);
   const c = COLORS[color] || COLORS.amber;
   const Icon = icon;
@@ -53,6 +68,13 @@ function KPICard({ title, value, icon, color, prefix, suffix, subtitle, delay })
       <div className={'text-3xl font-black tracking-tight ' + c.text} style={{ fontFamily: 'Chivo, sans-serif' }}>
         {prefix || ''}{count.toLocaleString('id-ID')}{suffix || ''}
       </div>
+      {breakdown && (
+        <p className="text-[10px] font-mono text-zinc-500 mt-1">
+          Standar: <span className="text-zinc-300">{breakdown.standar}</span>
+          {' · '}
+          Premium: <span className="text-zinc-300">{breakdown.premium}</span>
+        </p>
+      )}
       {subtitle ? <p className="text-xs text-zinc-500 mt-1">{subtitle}</p> : null}
     </motion.div>
   );
@@ -72,14 +94,16 @@ function StatusBadge({ status }) {
   );
 }
 
-function ShiftChart({ data }) {
+function ShiftChart({ data, dateLabel }) {
   const items = data || [];
   const total = items.reduce(function(s, d) { return s + (d.value || 0); }, 0);
   return (
     <div className="py-2 space-y-5">
       <div className="text-center mb-4">
         <div className="text-5xl font-black text-white leading-none" style={{ fontFamily: 'Chivo, sans-serif' }}>{total}</div>
-        <div className="text-xs font-mono text-zinc-500 mt-1.5 uppercase tracking-widest">Total SIJ Hari Ini</div>
+        <div className="text-xs font-mono text-zinc-500 mt-1.5 uppercase tracking-widest">
+          Total SIJ {dateLabel}
+        </div>
       </div>
       {items.map(function(d) {
         const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
@@ -159,28 +183,32 @@ function LineSVGChart({ data }) {
 export default function SuperAdminDashboard() {
   const { getAuthHeader, API, user } = useAuth();
   const isViewer = user?.role === "viewer";
+  const [selectedDate, setSelectedDate] = useState(getTodayJakarta);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState(30);
   const [suspending, setSuspending] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (date) => {
     try {
-      const res = await axios.get(API + '/dashboard/superadmin', { headers: getAuthHeader() });
+      const res = await axios.get(API + '/dashboard/superadmin?date=' + date, { headers: getAuthHeader() });
       setData(res.data);
     } catch (err) {
       toast.error('Gagal memuat data dashboard');
     } finally {
       setLoading(false);
     }
-  };
+  }, [API, getAuthHeader]);
 
   useEffect(() => {
-    fetchData();
-    const iv = setInterval(function() { fetchData(); setCountdown(30); }, 30000);
+    fetchData(selectedDate);
+  }, [fetchData, selectedDate]);
+
+  useEffect(() => {
+    const iv = setInterval(function() { fetchData(selectedDate); setCountdown(30); }, 30000);
     const tk = setInterval(function() { setCountdown(function(c) { return c > 0 ? c - 1 : 30; }); }, 1000);
     return function() { clearInterval(iv); clearInterval(tk); };
-  }, []);
+  }, [fetchData, selectedDate]);
 
   const handleSuspend = async (driverId, name) => {
     if (!window.confirm('Suspend driver ' + name + '?')) return;
@@ -188,7 +216,7 @@ export default function SuperAdminDashboard() {
     try {
       await axios.patch(API + '/drivers/' + driverId + '/suspend', {}, { headers: getAuthHeader() });
       toast.success('Driver ' + name + ' disuspend');
-      fetchData();
+      fetchData(selectedDate);
     } catch (err) {
       toast.error('Gagal mensuspend driver');
     } finally {
@@ -204,36 +232,79 @@ export default function SuperAdminDashboard() {
     );
   }
 
+  const today = isToday(selectedDate);
+  const dateLabel = today ? 'Hari Ini' : formatDateLabel(selectedDate);
+  const sijLabel = today ? 'SIJ Hari Ini' : 'SIJ Tanggal Ini';
+  const revLabel = today ? 'Revenue Hari Ini' : 'Revenue Tanggal Ini';
+  const ritaseLabel = today ? 'Ritase Hari Ini' : 'Ritase Tanggal Ini';
+
   const totalDrivers = data && data.total_drivers ? data.total_drivers : 0;
   const suspendedDrivers = data && data.suspended_drivers ? data.suspended_drivers : 0;
   const driverSubtitle = totalDrivers + ' total · ' + suspendedDrivers + ' suspend';
+  const sijByCategory = data && data.sij_by_category ? data.sij_by_category : { standar: 0, premium: 0 };
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black text-white" style={{ fontFamily: 'Chivo, sans-serif' }}>
             Dashboard SuperAdmin
           </h1>
           <p className="text-zinc-500 text-sm mt-0.5">Soekarno-Hatta Airport — Overview Lengkap</p>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-zinc-500 font-mono">
-          <RefreshCw className="w-3 h-3" />
-          {countdown}s
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-zinc-500" />
+            <input
+              type="date"
+              value={selectedDate}
+              max={getTodayJakarta()}
+              onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+              className="bg-zinc-800/60 border border-zinc-700/50 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-amber-500/50 [color-scheme:dark]"
+            />
+          </div>
+          {!today && (
+            <button
+              onClick={() => setSelectedDate(getTodayJakarta())}
+              className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 transition"
+            >
+              Hari Ini
+            </button>
+          )}
+          <div className="flex items-center gap-1.5 text-xs text-zinc-500 font-mono">
+            <RefreshCw className="w-3 h-3" />
+            {countdown}s
+          </div>
         </div>
       </motion.div>
 
+      {!today && (
+        <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-900/20 border border-amber-700/30 text-xs text-amber-300 font-mono">
+            <Calendar className="w-3.5 h-3.5 text-amber-400" />
+            Menampilkan data untuk tanggal <span className="font-bold text-amber-400 ml-1">{formatDateLabel(selectedDate)}</span>
+          </div>
+        </motion.div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="SIJ Hari Ini" value={data && data.total_sij_today} icon={TrendingUp} color="amber" delay={0} />
-        <KPICard title="Revenue Hari Ini" value={data && data.total_revenue_today} icon={DollarSign} color="emerald" prefix="Rp " delay={0.07} />
+        <KPICard
+          title={sijLabel}
+          value={data && data.total_sij_today}
+          icon={TrendingUp}
+          color="amber"
+          breakdown={sijByCategory}
+          delay={0}
+        />
+        <KPICard title={revLabel} value={data && data.total_revenue_today} icon={DollarSign} color="emerald" prefix="Rp " delay={0.07} />
         <KPICard title="Driver Aktif" value={data && data.active_drivers} icon={Users} color="sky" subtitle={driverSubtitle} delay={0.14} />
-        <KPICard title="Ritase Hari Ini" value={data && data.total_ritase_today} icon={Truck} color="purple" delay={0.21} />
+        <KPICard title={ritaseLabel} value={data && data.total_ritase_today} icon={Truck} color="purple" delay={0.21} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-zinc-100 mb-4">SIJ per Shift (Hari Ini)</h3>
-          <ShiftChart data={data && data.sij_per_shift} />
+          <h3 className="text-sm font-semibold text-zinc-100 mb-4">SIJ per Shift ({dateLabel})</h3>
+          <ShiftChart data={data && data.sij_per_shift} dateLabel={dateLabel} />
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.37 }} className="glass-card rounded-xl p-5">

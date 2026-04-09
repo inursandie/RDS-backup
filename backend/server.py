@@ -1287,20 +1287,22 @@ async def admin_dashboard(user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/dashboard/superadmin")
-async def superadmin_dashboard(user: dict = Depends(get_current_user)):
+async def superadmin_dashboard(date: Optional[str] = Query(None),
+                               user: dict = Depends(get_current_user)):
     if user.get('role') not in ['superadmin', 'viewer']:
         raise HTTPException(status_code=403, detail="Akses ditolak")
     now = datetime.now(JAKARTA_TZ)
     today = now.strftime("%Y-%m-%d")
+    selected_date = date if date else today
     current_month = now.strftime("%Y-%m")
     month_prefix = f"{current_month}%"
 
     total_sij_today = await pool.fetchval(
         "SELECT COUNT(*) FROM sij_transactions WHERE date = $1 AND status = 'active'",
-        today)
+        selected_date)
     total_revenue_today = await pool.fetchval(
         "SELECT COALESCE(SUM(amount), 0) FROM sij_transactions WHERE date = $1 AND status = 'active'",
-        today)
+        selected_date)
     monthly_row = await pool.fetchrow(
         "SELECT COUNT(*) as sij, COALESCE(SUM(amount), 0) as rev FROM sij_transactions WHERE date LIKE $1 AND status = 'active'",
         month_prefix)
@@ -1313,10 +1315,18 @@ async def superadmin_dashboard(user: dict = Depends(get_current_user)):
         "SELECT COUNT(*) FROM drivers WHERE status = 'suspend'")
     shift1_sij = await pool.fetchval(
         "SELECT COUNT(*) FROM sij_transactions WHERE date = $1 AND shift = 'Shift1' AND status = 'active'",
-        today)
+        selected_date)
     shift2_sij = await pool.fetchval(
         "SELECT COUNT(*) FROM sij_transactions WHERE date = $1 AND shift = 'Shift2' AND status = 'active'",
-        today)
+        selected_date)
+    category_rows = await pool.fetch(
+        "SELECT category, COUNT(*) as cnt FROM sij_transactions WHERE date = $1 AND status = 'active' GROUP BY category",
+        selected_date)
+    sij_by_category = {"standar": 0, "premium": 0}
+    for r in category_rows:
+        cat = (r['category'] or 'standar').lower()
+        if cat in sij_by_category:
+            sij_by_category[cat] = r['cnt']
     daily_trend = []
     for i in range(6, -1, -1):
         day = (now - timedelta(days=i)).strftime("%Y-%m-%d")
@@ -1336,8 +1346,10 @@ async def superadmin_dashboard(user: dict = Depends(get_current_user)):
         "SELECT r.driver_id, r.driver_name, COUNT(*) as trip_count FROM ritase r WHERE r.date LIKE $1 GROUP BY r.driver_id, r.driver_name ORDER BY trip_count DESC LIMIT 10",
         month_prefix)
     total_ritase_today = await pool.fetchval(
-        "SELECT COUNT(*) FROM ritase WHERE date = $1", today)
+        "SELECT COUNT(*) FROM ritase WHERE date = $1", selected_date)
     return {
+        "selected_date":
+        selected_date,
         "total_sij_today":
         total_sij_today,
         "total_revenue_today":
@@ -1354,6 +1366,8 @@ async def superadmin_dashboard(user: dict = Depends(get_current_user)):
         suspended_drivers,
         "total_ritase_today":
         total_ritase_today,
+        "sij_by_category":
+        sij_by_category,
         "ritase_ranking":
         rows_to_list(ritase_ranking),
         "sij_per_shift": [
