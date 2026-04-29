@@ -286,3 +286,184 @@ class TestAudit:
         r = requests.get(f"{BASE_URL}/api/audit/export", headers=superadmin_headers)
         assert r.status_code == 200
         assert "text/csv" in r.headers.get("content-type", "")
+
+
+# ===== WEEKLY REPORT TRUNCATION TESTS =====
+
+class TestWeeklyReportTruncation:
+    """
+    Automated regression tests to catch report truncation bugs.
+
+    These tests guard against hardcoded day limits (e.g. 7-day cap) being
+    accidentally introduced in get_weekly_report, export_weekly_csv, or
+    export_weekly_pdf.  They use April Periode 4 (22-30) as the canonical
+    9-day reference case.
+    """
+
+    # ---- helpers ----
+
+    @staticmethod
+    def _csv_date_labels(csv_text: str) -> list:
+        """Return the unique 'Tgl N' labels found in the CSV header row."""
+        import csv as csv_mod
+        import io as io_mod
+        reader = csv_mod.reader(io_mod.StringIO(csv_text))
+        seen = set()
+        labels = []
+        for row in reader:
+            # The header row starts with "No", "Nama Driver", "Nopol"
+            if row and row[0] == "No":
+                for cell in row:
+                    if cell.startswith("Tgl "):
+                        # Strip the KHD/RTS suffix: "Tgl 22 KHD" -> "Tgl 22"
+                        label = " ".join(cell.split()[:2])
+                        if label not in seen:
+                            seen.add(label)
+                            labels.append(label)
+                break  # only inspect the first real header row
+        return labels
+
+    @staticmethod
+    def _pdf_text(pdf_bytes: bytes) -> str:
+        """Extract all text from a PDF returned as bytes."""
+        import io as io_mod
+        import pypdf
+        reader = pypdf.PdfReader(io_mod.BytesIO(pdf_bytes))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+    # ---- JSON endpoint tests ----
+
+    def test_weekly_report_json_april_periode4_returns_9_days(self, admin_headers):
+        """GET /api/weekly-report must return exactly 9 days for Apr 22-30."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report",
+            params={"start_date": "2026-04-22", "end_date": "2026-04-30"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        days = data.get("days", [])
+        assert len(days) == 9, (
+            f"Expected 9 days for Apr 22-30, got {len(days)}: {days}"
+        )
+
+    def test_weekly_report_json_april_periode4_day_values(self, admin_headers):
+        """The 9 days returned must be exactly 2026-04-22 through 2026-04-30."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report",
+            params={"start_date": "2026-04-22", "end_date": "2026-04-30"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        days = r.json().get("days", [])
+        expected = [f"2026-04-{d:02d}" for d in range(22, 31)]
+        assert days == expected, f"Day list mismatch: {days}"
+
+    def test_weekly_report_json_driver_daily_count_matches_period(self, admin_headers):
+        """Every driver row must have exactly 9 daily entries."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report",
+            params={"start_date": "2026-04-22", "end_date": "2026-04-30"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        drivers = r.json().get("drivers", [])
+        assert len(drivers) > 0, "No drivers returned — cannot validate daily count"
+        for drv in drivers:
+            daily = drv.get("daily", [])
+            assert len(daily) == 9, (
+                f"Driver '{drv['name']}' has {len(daily)} daily entries, expected 9"
+            )
+
+    # ---- CSV export tests ----
+
+    def test_weekly_report_csv_april_periode4_returns_200(self, admin_headers):
+        """CSV export endpoint must respond 200 for Apr 22-30."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report/export/csv",
+            params={"start_date": "2026-04-22", "end_date": "2026-04-30"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        assert "text/csv" in r.headers.get("content-type", "")
+
+    def test_weekly_report_csv_april_periode4_has_9_date_columns(self, admin_headers):
+        """CSV header must contain exactly 9 unique Tgl labels (Tgl 22 – Tgl 30)."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report/export/csv",
+            params={"start_date": "2026-04-22", "end_date": "2026-04-30"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        labels = self._csv_date_labels(r.text)
+        assert len(labels) == 9, (
+            f"CSV has {len(labels)} date column(s), expected 9. Found: {labels}"
+        )
+
+    def test_weekly_report_csv_april_periode4_correct_day_labels(self, admin_headers):
+        """CSV date labels must be Tgl 22 through Tgl 30 in order."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report/export/csv",
+            params={"start_date": "2026-04-22", "end_date": "2026-04-30"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        labels = self._csv_date_labels(r.text)
+        expected_labels = [f"Tgl {d}" for d in range(22, 31)]
+        assert labels == expected_labels, (
+            f"CSV day labels mismatch.\n  Expected: {expected_labels}\n  Got:      {labels}"
+        )
+
+    def test_weekly_report_csv_no_truncation_for_9day_period(self, admin_headers):
+        """
+        Generic guard: any 9-day period must produce 9 date columns.
+        Uses a static date range so the test is deterministic.
+        """
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report/export/csv",
+            params={"start_date": "2026-04-22", "end_date": "2026-04-30"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        labels = self._csv_date_labels(r.text)
+        assert len(labels) >= 9, (
+            f"Truncation detected: only {len(labels)} date column(s) for a 9-day period"
+        )
+
+    # ---- PDF export tests ----
+
+    def test_weekly_report_pdf_april_periode4_returns_200(self, admin_headers):
+        """PDF export endpoint must respond 200 for Apr 22-30."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report/export/pdf",
+            params={"start_date": "2026-04-22", "end_date": "2026-04-30"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        assert "application/pdf" in r.headers.get("content-type", "")
+
+    def test_weekly_report_pdf_april_periode4_has_9_day_labels(self, admin_headers):
+        """PDF must contain exactly the 9 day labels Tgl 22–Tgl 30 and no others."""
+        import re
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report/export/pdf",
+            params={"start_date": "2026-04-22", "end_date": "2026-04-30"},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        text = self._pdf_text(r.content)
+
+        expected_labels = {f"Tgl {d}" for d in range(22, 31)}
+
+        missing = [lbl for lbl in expected_labels if lbl not in text]
+        assert not missing, (
+            f"PDF is missing day label(s): {sorted(missing)}. "
+            "This indicates column truncation in the PDF export."
+        )
+
+        found_labels = set(re.findall(r"Tgl \d+", text))
+        unexpected = found_labels - expected_labels
+        assert not unexpected, (
+            f"PDF contains unexpected day label(s): {sorted(unexpected)}. "
+            "Expected only Tgl 22 through Tgl 30."
+        )
