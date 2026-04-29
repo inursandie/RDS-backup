@@ -487,6 +487,10 @@ class TestWeeklyReportTruncation:
             "2026-04-22", "2026-04-30", list(range(22, 31)), 9,
             id="periode4_april_22-30",
         ),
+        pytest.param(
+            "2026-02-22", "2026-02-28", list(range(22, 29)), 7,
+            id="periode4_february_22-28",
+        ),
     ]
 
     @pytest.mark.parametrize("start_date,end_date,day_numbers,expected_days", PERIODE_CASES)
@@ -517,7 +521,8 @@ class TestWeeklyReportTruncation:
         )
         assert r.status_code == 200
         days = r.json().get("days", [])
-        expected = [f"2026-04-{d:02d}" for d in day_numbers]
+        year, month, _ = start_date.split("-")
+        expected = [f"{year}-{month}-{d:02d}" for d in day_numbers]
         assert days == expected, (
             f"Day list mismatch for {start_date}–{end_date}.\n"
             f"  Expected: {expected}\n  Got:      {days}"
