@@ -49,17 +49,21 @@ function formatMonthLabel(monthStr) {
 }
 
 function getLastDay(monthStr) {
-  const [year, mon] = monthStr.split("-").map(Number);
+  const [yearStr, monStr] = monthStr.split("-");
+  const year = parseInt(yearStr, 10);
+  const mon = parseInt(monStr, 10);
   return new Date(year, mon, 0).getDate();
 }
 
 function getPeriodDates(monthStr, periodIdx) {
-  const def = PERIOD_DEFS[periodIdx];
   const lastDay = getLastDay(monthStr);
   const pad = (n) => String(n).padStart(2, "0");
-  const endDay = Math.min(def.endDay ?? lastDay, lastDay);
+  const START_DAYS = [1, 8, 15, 22];
+  const END_DAYS = [7, 14, 21, lastDay];
+  const startDay = START_DAYS[periodIdx];
+  const endDay = END_DAYS[periodIdx];
   return {
-    startDate: `${monthStr}-${pad(def.startDay)}`,
+    startDate: `${monthStr}-${pad(startDay)}`,
     endDate: `${monthStr}-${pad(endDay)}`,
   };
 }
@@ -590,15 +594,16 @@ export default function LaporanMingguan() {
               onChange={(e) => setPeriodIdx(Number(e.target.value))}
               className="px-3 py-2 rounded-lg bg-zinc-800/50 border border-zinc-700/50 text-sm text-white focus:outline-none focus:border-amber-500/50 [color-scheme:dark]"
             >
-              {PERIOD_DEFS.map((p, i) => (
-                <option key={i} value={i}>
-                  {p.label} (Tgl{" "}
-                  {i < 3
-                    ? `${p.startDay}–${p.endDay}`
-                    : `${p.startDay}–${getLastDay(month)}`}
-                  )
-                </option>
-              ))}
+              {PERIOD_DEFS.map((p, i) => {
+                const { startDate: sd, endDate: ed } = getPeriodDates(month, i);
+                const sDay = parseInt(sd.split("-")[2], 10);
+                const eDay = parseInt(ed.split("-")[2], 10);
+                return (
+                  <option key={i} value={i}>
+                    {p.label} (Tgl {sDay}–{eDay})
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="relative">
