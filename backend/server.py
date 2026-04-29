@@ -1879,14 +1879,61 @@ async def export_weekly_pdf(start_date: str = Query(...),
 # =================== MONTHLY PERIOD REPORT ===================
 
 def _get_monthly_periods(month: str):
-    year, mon = int(month.split('-')[0]), int(month.split('-')[1])
+    """Return the four fixed Periode boundaries for a given YYYY-MM month.
+
+    Periode definitions (inclusive on both ends):
+      Periode 1 : days  1 –  7   (exactly 7 days)
+      Periode 2 : days  8 – 14   (exactly 7 days)
+      Periode 3 : days 15 – 21   (exactly 7 days)
+      Periode 4 : days 22 – last day of month  (6–10 days depending on month)
+
+    Key boundary rules to keep in mind:
+      - Day 7  is the last day of Periode 1; day  8 is the first of Periode 2.
+      - Day 14 is the last day of Periode 2; day 15 is the first of Periode 3.
+      - Day 21 is the last day of Periode 3; day 22 is the first of Periode 4.
+      - The last day of the month closes Periode 4 (calendar.monthrange handles
+        leap-year February and 30/31-day months automatically).
+
+    Raises ValueError if the month string is malformed or the computed
+    boundaries would be inconsistent (e.g. last_day < 22 is impossible for any
+    real calendar month but is checked defensively).
+    """
+    try:
+        parts = month.split('-')
+        if len(parts) != 2:
+            raise ValueError(f"Expected YYYY-MM, got {month!r}")
+        year, mon = int(parts[0]), int(parts[1])
+        if not (1 <= mon <= 12):
+            raise ValueError(f"Month value {mon} is out of range 1–12")
+    except (ValueError, AttributeError) as exc:
+        raise ValueError(f"Invalid month string for _get_monthly_periods: {month!r}") from exc
+
     last_day = calendar.monthrange(year, mon)[1]
-    return [
-        {"label": "Periode 1", "start": f"{month}-01", "end": f"{month}-07"},
-        {"label": "Periode 2", "start": f"{month}-08", "end": f"{month}-14"},
-        {"label": "Periode 3", "start": f"{month}-15", "end": f"{month}-21"},
-        {"label": "Periode 4", "start": f"{month}-22", "end": f"{month}-{last_day:02d}"},
-    ]
+
+    # Defensive guard: every real calendar month has at least 28 days, so
+    # last_day is always >= 22.  If somehow it is not, Periode 4 would have a
+    # start date after its end date, which is a logic error we must catch early.
+    if last_day < 22:
+        raise ValueError(
+            f"last_day={last_day} for {month} is less than 22; "
+            "Periode 4 boundary (day 22 – last_day) would be invalid."
+        )
+
+    # Periode 1: days 1–7 (inclusive).  Day 7 is the boundary; day 8 starts P2.
+    p1 = {"label": "Periode 1", "start": f"{month}-01", "end": f"{month}-07"}
+
+    # Periode 2: days 8–14 (inclusive).  Day 14 is the boundary; day 15 starts P3.
+    p2 = {"label": "Periode 2", "start": f"{month}-08", "end": f"{month}-14"}
+
+    # Periode 3: days 15–21 (inclusive).  Day 21 is the boundary; day 22 starts P4.
+    p3 = {"label": "Periode 3", "start": f"{month}-15", "end": f"{month}-21"}
+
+    # Periode 4: days 22–last_day (inclusive).  last_day is computed by
+    # calendar.monthrange so it correctly handles Feb 28/29, 30-day and 31-day
+    # months without any integer-division arithmetic.
+    p4 = {"label": "Periode 4", "start": f"{month}-22", "end": f"{month}-{last_day:02d}"}
+
+    return [p1, p2, p3, p4]
 
 
 async def _build_monthly_report(month: str):
