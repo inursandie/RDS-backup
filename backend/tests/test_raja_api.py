@@ -467,3 +467,144 @@ class TestWeeklyReportTruncation:
             f"PDF contains unexpected day label(s): {sorted(unexpected)}. "
             "Expected only Tgl 22 through Tgl 30."
         )
+
+    # ---- Parametrized tests for all four Periode types ----
+
+    PERIODE_CASES = [
+        pytest.param(
+            "2026-04-01", "2026-04-07", list(range(1, 8)), 7,
+            id="periode1_april_1-7",
+        ),
+        pytest.param(
+            "2026-04-08", "2026-04-14", list(range(8, 15)), 7,
+            id="periode2_april_8-14",
+        ),
+        pytest.param(
+            "2026-04-15", "2026-04-21", list(range(15, 22)), 7,
+            id="periode3_april_15-21",
+        ),
+        pytest.param(
+            "2026-04-22", "2026-04-30", list(range(22, 31)), 9,
+            id="periode4_april_22-30",
+        ),
+    ]
+
+    @pytest.mark.parametrize("start_date,end_date,day_numbers,expected_days", PERIODE_CASES)
+    def test_weekly_report_json_periode_day_count(
+        self, admin_headers, start_date, end_date, day_numbers, expected_days
+    ):
+        """GET /api/weekly-report must return the correct number of days for each Periode."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report",
+            params={"start_date": start_date, "end_date": end_date},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        days = r.json().get("days", [])
+        assert len(days) == expected_days, (
+            f"Expected {expected_days} days for {start_date}–{end_date}, got {len(days)}: {days}"
+        )
+
+    @pytest.mark.parametrize("start_date,end_date,day_numbers,expected_days", PERIODE_CASES)
+    def test_weekly_report_json_periode_day_values(
+        self, admin_headers, start_date, end_date, day_numbers, expected_days
+    ):
+        """Day list must match the exact dates for each Periode."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report",
+            params={"start_date": start_date, "end_date": end_date},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        days = r.json().get("days", [])
+        expected = [f"2026-04-{d:02d}" for d in day_numbers]
+        assert days == expected, (
+            f"Day list mismatch for {start_date}–{end_date}.\n"
+            f"  Expected: {expected}\n  Got:      {days}"
+        )
+
+    @pytest.mark.parametrize("start_date,end_date,day_numbers,expected_days", PERIODE_CASES)
+    def test_weekly_report_json_driver_daily_count_all_periodes(
+        self, admin_headers, start_date, end_date, day_numbers, expected_days
+    ):
+        """Every driver row must have exactly the right number of daily entries per Periode."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report",
+            params={"start_date": start_date, "end_date": end_date},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        drivers = r.json().get("drivers", [])
+        assert len(drivers) > 0, "No drivers returned — cannot validate daily count"
+        for drv in drivers:
+            daily = drv.get("daily", [])
+            assert len(daily) == expected_days, (
+                f"Driver '{drv['name']}' has {len(daily)} daily entries, "
+                f"expected {expected_days} for {start_date}–{end_date}"
+            )
+
+    @pytest.mark.parametrize("start_date,end_date,day_numbers,expected_days", PERIODE_CASES)
+    def test_weekly_report_csv_periode_column_count(
+        self, admin_headers, start_date, end_date, day_numbers, expected_days
+    ):
+        """CSV header must contain exactly the correct number of Tgl labels for each Periode."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report/export/csv",
+            params={"start_date": start_date, "end_date": end_date},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        assert "text/csv" in r.headers.get("content-type", "")
+        labels = self._csv_date_labels(r.text)
+        assert len(labels) == expected_days, (
+            f"CSV has {len(labels)} date column(s) for {start_date}–{end_date}, "
+            f"expected {expected_days}. Found: {labels}"
+        )
+
+    @pytest.mark.parametrize("start_date,end_date,day_numbers,expected_days", PERIODE_CASES)
+    def test_weekly_report_csv_periode_correct_day_labels(
+        self, admin_headers, start_date, end_date, day_numbers, expected_days
+    ):
+        """CSV date labels must match the exact Tgl numbers for each Periode, in order."""
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report/export/csv",
+            params={"start_date": start_date, "end_date": end_date},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        labels = self._csv_date_labels(r.text)
+        expected_labels = [f"Tgl {d}" for d in day_numbers]
+        assert labels == expected_labels, (
+            f"CSV day labels mismatch for {start_date}–{end_date}.\n"
+            f"  Expected: {expected_labels}\n  Got:      {labels}"
+        )
+
+    @pytest.mark.parametrize("start_date,end_date,day_numbers,expected_days", PERIODE_CASES)
+    def test_weekly_report_pdf_periode_has_all_day_labels(
+        self, admin_headers, start_date, end_date, day_numbers, expected_days
+    ):
+        """PDF must contain all expected Tgl labels and no labels outside the Periode."""
+        import re
+        r = requests.get(
+            f"{BASE_URL}/api/weekly-report/export/pdf",
+            params={"start_date": start_date, "end_date": end_date},
+            headers=admin_headers,
+        )
+        assert r.status_code == 200
+        assert "application/pdf" in r.headers.get("content-type", "")
+        text = self._pdf_text(r.content)
+
+        expected_labels = {f"Tgl {d}" for d in day_numbers}
+
+        missing = [lbl for lbl in expected_labels if lbl not in text]
+        assert not missing, (
+            f"PDF is missing day label(s) for {start_date}–{end_date}: {sorted(missing)}. "
+            "This indicates column truncation in the PDF export."
+        )
+
+        found_labels = set(re.findall(r"Tgl \d+", text))
+        unexpected = found_labels - expected_labels
+        assert not unexpected, (
+            f"PDF contains unexpected day label(s) for {start_date}–{end_date}: {sorted(unexpected)}. "
+            f"Expected only {sorted(expected_labels)}."
+        )
