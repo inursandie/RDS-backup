@@ -2,15 +2,19 @@ import os
 import pytest
 import requests
 
+_BACKEND_UNAVAILABLE_REASON = None
+
 
 def pytest_configure(config):
+    global _BACKEND_UNAVAILABLE_REASON
+
     base_url = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 
     if not base_url:
-        pytest.exit(
-            "REACT_APP_BACKEND_URL is not set — set it to the backend server URL before running tests.",
-            returncode=1,
+        _BACKEND_UNAVAILABLE_REASON = (
+            "REACT_APP_BACKEND_URL is not set — set it to the backend server URL before running integration tests."
         )
+        return
 
     try:
         response = requests.post(
@@ -23,7 +27,13 @@ def pytest_configure(config):
         reachable = False
 
     if not reachable:
-        pytest.exit(
-            f"Backend at {base_url} is not reachable — start the server first.",
-            returncode=1,
+        _BACKEND_UNAVAILABLE_REASON = (
+            f"Backend at {base_url} is not reachable — start the server first."
         )
+
+
+def pytest_runtest_setup(item):
+    if _BACKEND_UNAVAILABLE_REASON is not None:
+        test_file = os.path.basename(item.fspath)
+        if test_file == "test_raja_api.py":
+            pytest.skip(_BACKEND_UNAVAILABLE_REASON)
