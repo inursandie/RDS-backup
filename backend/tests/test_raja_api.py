@@ -491,6 +491,10 @@ class TestWeeklyReportTruncation:
             "2026-02-22", "2026-02-28", list(range(22, 29)), 7,
             id="periode4_february_22-28",
         ),
+        pytest.param(
+            "2024-02-22", "2024-02-29", list(range(22, 30)), 8,
+            id="periode4_february_leap_year_22-29",
+        ),
     ]
 
     @pytest.mark.parametrize("start_date,end_date,day_numbers,expected_days", PERIODE_CASES)
