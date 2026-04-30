@@ -1936,6 +1936,65 @@ def _get_monthly_periods(month: str):
     return [p1, p2, p3, p4]
 
 
+def _assert_periods_cover_month(periods: list, month: str) -> None:
+    """Validate that *periods* are contiguous and exactly span the whole month.
+
+    Raises RuntimeError (surfaced as HTTP 500 by the caller) when any of the
+    following invariants is violated:
+
+    1. The first period starts on day 1 of *month*.
+    2. Every consecutive pair of periods is contiguous: the day after period[i]
+       ends must equal the day that period[i+1] starts (no gap, no overlap).
+    3. The last period ends on the final calendar day of *month*.
+
+    These checks are intentionally strict so that a regression in the boundary
+    logic raises an explicit error instead of producing a silently incomplete
+    report.
+    """
+    from datetime import date as _date, timedelta as _td
+
+    try:
+        parts = month.split('-')
+        year, mon = int(parts[0]), int(parts[1])
+    except Exception as exc:
+        raise RuntimeError(f"_assert_periods_cover_month: bad month {month!r}") from exc
+
+    last_day = calendar.monthrange(year, mon)[1]
+    expected_start = _date(year, mon, 1)
+    expected_end = _date(year, mon, last_day)
+
+    if not periods:
+        raise RuntimeError(
+            f"Period coverage error for {month}: no periods were returned."
+        )
+
+    actual_start = _date.fromisoformat(periods[0]['start'])
+    if actual_start != expected_start:
+        raise RuntimeError(
+            f"Period coverage error for {month}: first period starts on "
+            f"{actual_start} but expected {expected_start} (day 1)."
+        )
+
+    for i in range(len(periods) - 1):
+        cur_end = _date.fromisoformat(periods[i]['end'])
+        next_start = _date.fromisoformat(periods[i + 1]['start'])
+        expected_next = cur_end + _td(days=1)
+        if next_start != expected_next:
+            raise RuntimeError(
+                f"Period coverage error for {month}: gap or overlap between "
+                f"{periods[i]['label']} (ends {cur_end}) and "
+                f"{periods[i + 1]['label']} (starts {next_start}); "
+                f"expected next period to start on {expected_next}."
+            )
+
+    actual_end = _date.fromisoformat(periods[-1]['end'])
+    if actual_end != expected_end:
+        raise RuntimeError(
+            f"Period coverage error for {month}: last period ends on "
+            f"{actual_end} but expected {expected_end} (last day of month)."
+        )
+
+
 async def _build_monthly_report(month: str):
     from datetime import date as date_type
     try:
@@ -1949,6 +2008,10 @@ async def _build_monthly_report(month: str):
         raise HTTPException(status_code=400, detail="Format bulan tidak valid, gunakan YYYY-MM (contoh: 2026-04)")
 
     periods = _get_monthly_periods(month)
+    try:
+        _assert_periods_cover_month(periods, month)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
     month_start = f"{month}-01"
     last_day = calendar.monthrange(year, mon)[1]
     month_end = f"{month}-{last_day:02d}"
